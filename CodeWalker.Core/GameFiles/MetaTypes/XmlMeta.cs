@@ -1065,7 +1065,15 @@ namespace CodeWalker.GameFiles
             if (string.IsNullOrEmpty(str)) return 0;
             if (str.StartsWith("hash_"))
             {
-                return (MetaHash) Convert.ToUInt32(str.Substring(5), 16);
+                try
+                {
+                    return (MetaHash)Convert.ToUInt32(str.Substring(5), 16);
+                }
+                catch (FormatException)
+                {
+                    // Fallback for malformed hash strings
+                    return JenkHash.GenHash(str);
+                }
             }
             else
             {

@@ -1589,6 +1589,42 @@ namespace CodeWalker.GameFiles
             if (EnableDlc)
             {
                 addVehicleFiles(DlcActiveRpfs);
+
+                foreach (var setupFile in DlcSetupFiles)
+                {
+                    if (setupFile?.ContentFile?.dataFiles == null) continue;
+
+                    foreach (var dataFile in setupFile.ContentFile.dataFiles)
+                    {
+                        if (dataFile.fileType != "VEHICLE_METADATA_FILE" || dataFile.disabled) continue;
+
+                        try
+                        {
+                            var path = setupFile.DlcFile.Path + "\\" + dataFile.filename.Replace(setupFile.deviceName + ":/", "");
+                            var entry = RpfMan.GetEntry(path);
+                            if (entry != null)
+                            {
+                                VehiclesFile vf = RpfMan.GetFile<VehiclesFile>(entry);
+                                if (vf.InitDatas != null)
+                                {
+                                    foreach (var initData in vf.InitDatas)
+                                    {
+                                        var name = initData.modelName.ToLowerInvariant();
+                                        var hash = JenkHash.GenHash(name);
+                                        if (allVehicles.ContainsKey(hash))
+                                        { }
+                                        allVehicles[hash] = initData;
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            string errstr = dataFile.filename + "\n" + ex.ToString();
+                            ErrorLog(errstr);
+                        }
+                    }
+                }
             }
 
 

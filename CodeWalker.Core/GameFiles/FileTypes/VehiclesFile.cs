@@ -38,6 +38,25 @@ namespace CodeWalker.GameFiles
             if (entry.NameLower.EndsWith(".meta"))
             {
                 string xml = TextUtil.GetUTF8Text(data);
+                int firstDecl = xml.IndexOf("<?xml");
+                if (firstDecl > 0)
+                {
+                    xml = xml.Substring(firstDecl);
+                }
+                int nextDecl = xml.IndexOf("<?xml", 1);
+                while (nextDecl > 0)
+                {
+                    int endDecl = xml.IndexOf("?>", nextDecl);
+                    if (endDecl > 0)
+                    {
+                        xml = xml.Remove(nextDecl, endDecl - nextDecl + 2);
+                    }
+                    else
+                    {
+                        break; // No closing tag, something is wrong, but let the parser handle it
+                    }
+                    nextDecl = xml.IndexOf("<?xml", 1);
+                }
 
                 XmlDocument xmldoc = new XmlDocument();
                 xmldoc.LoadXml(xml);
