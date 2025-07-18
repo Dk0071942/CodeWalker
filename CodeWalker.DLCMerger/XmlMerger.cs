@@ -179,6 +179,9 @@ namespace CodeWalker.DLCMerger
                 }
             }
             
+            // Apply validation to clean up unused carcols items and empty kits
+            ValidateAndCleanupFiles(mergedFiles);
+            
             return mergedFiles;
         }
 
@@ -317,7 +320,7 @@ namespace CodeWalker.DLCMerger
 
         public string GenerateContentXml(string dlcName)
         {
-            var dlcDeviceName = $"dlc_{dlcName}";
+            var dlcDeviceName = $"dlc_{SanitizeDlcName(dlcName)}";
             var sb = new StringBuilder();
             
             sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
@@ -412,7 +415,7 @@ namespace CodeWalker.DLCMerger
 
         public string GenerateSetup2Xml(string dlcName)
         {
-            var dlcDeviceName = $"dlc_{dlcName}";
+            var dlcDeviceName = $"dlc_{SanitizeDlcName(dlcName)}";
             var sb = new StringBuilder();
             
             sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
@@ -420,7 +423,6 @@ namespace CodeWalker.DLCMerger
             sb.AppendLine($"\t<deviceName>{dlcDeviceName}</deviceName>");
             sb.AppendLine("\t<datFile>content.xml</datFile>");
             sb.AppendLine($"\t<timeStamp>{DateTime.Now:MM/dd/yyyy HH:mm:ss}</timeStamp>");
-            sb.AppendLine($"\t<nameHash>{dlcName}</nameHash>");
             sb.AppendLine("\t<contentChangeSetGroups>");
             sb.AppendLine("\t\t<Item>");
             sb.AppendLine("\t\t\t<NameHash>GROUP_STARTUP</NameHash>");
@@ -435,6 +437,219 @@ namespace CodeWalker.DLCMerger
             sb.AppendLine("</SSetupData>");
             
             return sb.ToString();
+        }
+
+        private string SanitizeDlcName(string dlcName)
+        {
+            // Remove all non-alphanumeric characters and convert to lowercase
+            var sanitized = new string(dlcName.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+            
+            // Log if sanitization changed the name
+            if (sanitized != dlcName.ToLowerInvariant())
+            {
+                _log($"  DLC device name sanitized from '{dlcName}' to '{sanitized}'");
+            }
+            
+            return sanitized;
+        }
+
+        private void ValidateAndCleanupFiles(Dictionary<string, byte[]> mergedFiles)
+        {
+            try
+            {
+                var carcolsKey = mergedFiles.Keys.FirstOrDefault(k => k.Contains("carcols.meta"));
+                var carvariationsKey = mergedFiles.Keys.FirstOrDefault(k => k.Contains("carvariations.meta"));
+                
+                if (carcolsKey == null || carvariationsKey == null)
+                {
+                    _log("    Skipping validation - missing carcols.meta or carvariations.meta");
+                    return;
+                }
+                
+                _log("  Validating carcols.meta and carvariations.meta relationships...");
+                
+                // Parse carvariations.meta to get referenced kit names
+                var referencedKits = ExtractReferencedKits(mergedFiles[carvariationsKey]);
+                _log($"    Found {referencedKits.Count} referenced kits in carvariations.meta");
+                
+                // Parse and clean up carcols.meta, get the final list of valid kits
+                var (cleanedCarcolsData, validKitsAfterCleanup) = CleanupCarcolsKits(mergedFiles[carcolsKey], referencedKits);
+                mergedFiles[carcolsKey] = cleanedCarcolsData;
+                
+                // Update carvariations.meta to replace empty kit references with default kit
+                var cleanedCarvariationsData = CleanupCarvariationsKits(mergedFiles[carvariationsKey], validKitsAfterCleanup);
+                mergedFiles[carvariationsKey] = cleanedCarvariationsData;
+                
+                _log("    Validation and cleanup completed successfully");
+            }
+            catch (Exception ex)
+            {
+                _log($"    ERROR during validation: {ex.Message}");
+            }
+        }
+        
+        private HashSet<string> ExtractReferencedKits(byte[] carvariationsData)
+        {
+            var referencedKits = new HashSet<string>();
+            
+            try
+            {
+                var content = Encoding.UTF8.GetString(carvariationsData);
+                var doc = XDocument.Parse(content);
+                
+                // Find all kit references in carvariations.meta
+                var kitItems = doc.Descendants("variationData")
+                    .Elements("Item")
+                    .SelectMany(item => item.Elements("kits"))
+                    .SelectMany(kits => kits.Elements("Item"))
+                    .Select(item => item.Value.Trim())
+                    .Where(kitName => !string.IsNullOrEmpty(kitName));
+                
+                foreach (var kitName in kitItems)
+                {
+                    referencedKits.Add(kitName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log($"    ERROR parsing carvariations.meta: {ex.Message}");
+            }
+            
+            return referencedKits;
+        }
+        
+        private (byte[], HashSet<string>) CleanupCarcolsKits(byte[] carcolsData, HashSet<string> referencedKits)
+        {
+            var validKitsAfterCleanup = new HashSet<string>();
+            
+            try
+            {
+                var content = Encoding.UTF8.GetString(carcolsData);
+                var doc = XDocument.Parse(content);
+                
+                var kitsContainer = doc.Root?.Element("Kits");
+                if (kitsContainer == null)
+                {
+                    _log("    WARNING: No Kits container found in carcols.meta");
+                    return (carcolsData, validKitsAfterCleanup);
+                }
+                
+                var kitsToRemove = new List<XElement>();
+                var kitsProcessed = 0;
+                var kitsRemoved = 0;
+                
+                foreach (var kitItem in kitsContainer.Elements("Item"))
+                {
+                    kitsProcessed++;
+                    var kitNameElement = kitItem.Element("kitName");
+                    if (kitNameElement == null) continue;
+                    
+                    var kitName = kitNameElement.Value.Trim();
+                    
+                    // Check if this kit is referenced by any vehicle in carvariations.meta
+                    if (!referencedKits.Contains(kitName))
+                    {
+                        kitsToRemove.Add(kitItem);
+                        kitsRemoved++;
+                        continue;
+                    }
+                    
+                    // Check if kit has empty visibleMods
+                    var visibleModsElement = kitItem.Element("visibleMods");
+                    if (visibleModsElement != null)
+                    {
+                        var visibleModItems = visibleModsElement.Elements("Item").ToList();
+                        if (visibleModItems.Count == 0)
+                        {
+                            // Kit has empty visibleMods, remove it
+                            kitsToRemove.Add(kitItem);
+                            kitsRemoved++;
+                            continue;
+                        }
+                    }
+                    
+                    // Kit is valid, add to final list
+                    validKitsAfterCleanup.Add(kitName);
+                }
+                
+                // Remove unused kits
+                foreach (var kitToRemove in kitsToRemove)
+                {
+                    kitToRemove.Remove();
+                }
+                
+                _log($"    Processed {kitsProcessed} kits, removed {kitsRemoved} unused/empty kits, {validKitsAfterCleanup.Count} valid kits remain");
+                
+                // Convert back to bytes
+                var xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + doc.ToString();
+                return (Encoding.UTF8.GetBytes(xmlString), validKitsAfterCleanup);
+            }
+            catch (Exception ex)
+            {
+                _log($"    ERROR cleaning up carcols.meta: {ex.Message}");
+                return (carcolsData, validKitsAfterCleanup);
+            }
+        }
+        
+        private byte[] CleanupCarvariationsKits(byte[] carvariationsData, HashSet<string> validKitsAfterCleanup)
+        {
+            try
+            {
+                var content = Encoding.UTF8.GetString(carvariationsData);
+                var doc = XDocument.Parse(content);
+                
+                var variationItems = doc.Descendants("variationData").Elements("Item");
+                var vehiclesProcessed = 0;
+                var kitsReplaced = 0;
+                
+                foreach (var variationItem in variationItems)
+                {
+                    vehiclesProcessed++;
+                    var kitsElement = variationItem.Element("kits");
+                    if (kitsElement == null) continue;
+                    
+                    var kitItems = kitsElement.Elements("Item").ToList();
+                    var validKits = new List<string>();
+                    
+                    // Collect all valid kit names (ones that still exist in carcols after cleanup)
+                    foreach (var kitItem in kitItems)
+                    {
+                        var kitName = kitItem.Value.Trim();
+                        if (!string.IsNullOrEmpty(kitName) && validKitsAfterCleanup.Contains(kitName))
+                        {
+                            validKits.Add(kitName);
+                        }
+                    }
+                    
+                    // If no valid kits found or all kits were removed, replace with default kit
+                    if (validKits.Count == 0)
+                    {
+                        kitsElement.RemoveAll();
+                        kitsElement.Add(new XElement("Item", "0_default_modkit"));
+                        kitsReplaced++;
+                    }
+                    else if (validKits.Count != kitItems.Count)
+                    {
+                        // Some kits were invalid, rebuild the kits element with only valid ones
+                        kitsElement.RemoveAll();
+                        foreach (var validKit in validKits)
+                        {
+                            kitsElement.Add(new XElement("Item", validKit));
+                        }
+                    }
+                }
+                
+                _log($"    Processed {vehiclesProcessed} vehicles, replaced {kitsReplaced} empty kit references with default kit");
+                
+                // Convert back to bytes
+                var xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + doc.ToString();
+                return Encoding.UTF8.GetBytes(xmlString);
+            }
+            catch (Exception ex)
+            {
+                _log($"    ERROR cleaning up carvariations.meta: {ex.Message}");
+                return carvariationsData;
+            }
         }
 
         private string GetFileType(string fileName)
