@@ -318,9 +318,10 @@ namespace CodeWalker.DLCMerger
             return items;
         }
 
-        public string GenerateContentXml(string dlcName)
+        public string GenerateContentXml(string dlcName, string? customNameHash = null, string? customDeviceName = null)
         {
-            var dlcDeviceName = $"dlc_{SanitizeDlcName(dlcName)}";
+            var nameHash = customNameHash ?? dlcName;
+            var dlcDeviceName = customDeviceName ?? $"dlc_{SanitizeDlcName(dlcName)}";
             var sb = new StringBuilder();
             
             sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
@@ -385,7 +386,7 @@ namespace CodeWalker.DLCMerger
             // Add content change sets
             sb.AppendLine("\t<contentChangeSets>");
             sb.AppendLine("\t\t<Item>");
-            sb.AppendLine($"\t\t\t<changeSetName>{dlcName}_AUTOGEN</changeSetName>");
+            sb.AppendLine($"\t\t\t<changeSetName>{nameHash}_AUTOGEN</changeSetName>");
             sb.AppendLine("\t\t\t<mapChangeSetData/>");
             sb.AppendLine("\t\t\t<filesToInvalidate/>");
             sb.AppendLine("\t\t\t<filesToDisable/>");
@@ -413,9 +414,10 @@ namespace CodeWalker.DLCMerger
             return sb.ToString();
         }
 
-        public string GenerateSetup2Xml(string dlcName)
+        public string GenerateSetup2Xml(string dlcName, string? customNameHash = null, string? customDeviceName = null)
         {
-            var dlcDeviceName = $"dlc_{SanitizeDlcName(dlcName)}";
+            var nameHash = customNameHash ?? dlcName;
+            var dlcDeviceName = customDeviceName ?? $"dlc_{SanitizeDlcName(dlcName)}";
             var sb = new StringBuilder();
             
             sb.AppendLine(@"<?xml version=""1.0"" encoding=""UTF-8""?>");
@@ -423,17 +425,25 @@ namespace CodeWalker.DLCMerger
             sb.AppendLine($"\t<deviceName>{dlcDeviceName}</deviceName>");
             sb.AppendLine("\t<datFile>content.xml</datFile>");
             sb.AppendLine($"\t<timeStamp>{DateTime.Now:MM/dd/yyyy HH:mm:ss}</timeStamp>");
+            sb.AppendLine($"\t<nameHash>{nameHash}</nameHash>");
+            sb.AppendLine("\t<contentChangeSets/>");
             sb.AppendLine("\t<contentChangeSetGroups>");
             sb.AppendLine("\t\t<Item>");
             sb.AppendLine("\t\t\t<NameHash>GROUP_STARTUP</NameHash>");
             sb.AppendLine("\t\t\t<ContentChangeSets>");
-            sb.AppendLine($"\t\t\t\t<Item>{dlcName}_AUTOGEN</Item>");
+            sb.AppendLine($"\t\t\t\t<Item>{nameHash}_AUTOGEN</Item>");
             sb.AppendLine("\t\t\t</ContentChangeSets>");
             sb.AppendLine("\t\t</Item>");
             sb.AppendLine("\t</contentChangeSetGroups>");
+            sb.AppendLine("\t<startupScript/>");
+            sb.AppendLine("\t<scriptCallstackSize value=\"0\"/>");
             sb.AppendLine("\t<type>EXTRACONTENT_COMPAT_PACK</type>");
-            sb.AppendLine("\t<order value=\"9\"/>");
-            sb.AppendLine("\t<subPackCount value=\"0\"/>");
+            sb.AppendLine("\t<order value=\"31\"/>");
+            sb.AppendLine("\t<minorOrder value=\"0\"/>");
+            sb.AppendLine("\t<isLevelPack value=\"false\"/>");
+            sb.AppendLine("\t<dependencyPackHash/>");
+            sb.AppendLine("\t<requiredVersion/>");
+            sb.AppendLine("\t<subPackCount value=\"1\"/>");
             sb.AppendLine("</SSetupData>");
             
             return sb.ToString();
