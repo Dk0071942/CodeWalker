@@ -325,6 +325,65 @@ namespace CodeWalker.DLCMerger
             return items;
         }
 
+        private List<string> OrderContentXmlFiles(List<string> files)
+        {
+            // Define the priority order for vehicle-related files
+            var priorityOrder = new Dictionary<string, int>
+            {
+                { "handling.meta", 1 },
+                { "vehiclelayouts.meta", 2 },
+                { "vehicles.meta", 3 },
+                { "carcols.meta", 4 },
+                { "carvariations.meta", 5 }
+            };
+            
+            var orderedFiles = new List<string>();
+            var vehicleWeaponsFiles = new List<string>();
+            var otherFiles = new List<string>();
+            
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileName(file).ToLower();
+                
+                // Check if this is a priority file
+                if (priorityOrder.ContainsKey(fileName))
+                {
+                    orderedFiles.Add(file);
+                }
+                // Check if this is a vehicleweapons file
+                else if (file.Contains("vehicleweapons_"))
+                {
+                    vehicleWeaponsFiles.Add(file);
+                }
+                else
+                {
+                    otherFiles.Add(file);
+                }
+            }
+            
+            // Sort priority files according to defined order
+            orderedFiles.Sort((a, b) =>
+            {
+                var aName = Path.GetFileName(a).ToLower();
+                var bName = Path.GetFileName(b).ToLower();
+                var aPriority = priorityOrder.ContainsKey(aName) ? priorityOrder[aName] : int.MaxValue;
+                var bPriority = priorityOrder.ContainsKey(bName) ? priorityOrder[bName] : int.MaxValue;
+                return aPriority.CompareTo(bPriority);
+            });
+            
+            // Sort other files alphabetically
+            otherFiles.Sort();
+            vehicleWeaponsFiles.Sort();
+            
+            // Combine in the correct order
+            var result = new List<string>();
+            result.AddRange(orderedFiles);
+            result.AddRange(otherFiles);
+            result.AddRange(vehicleWeaponsFiles);
+            
+            return result;
+        }
+
         public string GenerateContentXml(string dlcName, string? customNameHash = null, string? customDeviceName = null)
         {
             var nameHash = customNameHash ?? dlcName;
@@ -356,8 +415,8 @@ namespace CodeWalker.DLCMerger
                 dataFiles.Add(weaponFile.Replace('\\', '/'));
             }
             
-            // Sort and add to content.xml
-            dataFiles.Sort();
+            // Order files according to dependencies
+            dataFiles = OrderContentXmlFiles(dataFiles);
             
             foreach (var fileName in dataFiles)
             {

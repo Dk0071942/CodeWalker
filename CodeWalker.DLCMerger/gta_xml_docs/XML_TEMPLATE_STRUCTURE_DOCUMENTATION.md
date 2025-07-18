@@ -12,6 +12,10 @@ This document provides comprehensive documentation for the XML template structur
 - Silent failures where content is not loaded
 - Corrupted game state
 
+## Related Documentation
+
+- [Content.xml File Ordering Requirements](./CONTENT_XML_FILE_ORDERING.md) - Critical information about file loading order in content.xml
+
 ## Template Structure Reference
 
 ### 1. carcols.meta - Vehicle Modification Colors
