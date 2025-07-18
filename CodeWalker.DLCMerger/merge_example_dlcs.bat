@@ -34,10 +34,10 @@ echo DLCMerger -i "%DLC1%" -i "%DLC2%" -o "%OUTPUT%" -v -s -f
 echo.
 echo === RUNNING RECOMMENDED COMMAND ===
 echo.
-echo Running: DLCMerger -i "%EXAMPLE_DIR%" -o "%OUTPUT%" -v -s -d
+echo Running: DLCMerger -i "%EXAMPLE_DIR%" -o "merged_output" -x -v -s -f
 echo.
 
-DLCMerger -i "%EXAMPLE_DIR%" -o "%OUTPUT%" -v -s -d
+DLCMerger -i "%EXAMPLE_DIR%" -o "merged_output" -x -v -s -f
 
 echo.
 echo === Test completed ===

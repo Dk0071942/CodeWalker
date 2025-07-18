@@ -19,41 +19,33 @@ namespace CodeWalker.DLCMerger
         {
             try
             {
-                Console.WriteLine("CodeWalker DLC Merger Tool");
-                Console.WriteLine("==========================");
-                Console.WriteLine();
-
-                // Display initial input info
                 var inputPaths = options.InputFiles.ToList();
                 if (inputPaths.Count == 0)
                 {
-                    Console.WriteLine("Error: No input files or directories specified. Use -i to specify input files or directories.");
-                    Console.WriteLine("Example: DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged.rpf");
-                    Console.WriteLine("Example: DLCMerger -i /path/to/dlc/folder -o merged.rpf");
+                    Console.WriteLine("Error: No input files specified. Use -i to specify input files.");
+                    Console.WriteLine("Usage: DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged.rpf");
                     return 1;
                 }
                 
-                Console.WriteLine($"Input paths: {inputPaths.Count}");
-                foreach (var path in inputPaths)
-                {
-                    Console.WriteLine($"  - {path}");
-                }
-                Console.WriteLine($"Output file: {options.OutputFile}");
-                Console.WriteLine($"Merge meta files: {(options.MergeMeta ? "Yes" : "No")}");
-                Console.WriteLine($"Encryption: {options.Encryption}");
-                Console.WriteLine();
+                Console.WriteLine($"DLCMerger: {inputPaths.Count} inputs -> {options.OutputFile}");
 
-                // Create merger instance
-                var merger = new RpfMerger(options, Console.WriteLine);
-                
-                // Perform merge
-                merger.Merge();
+                // Create merger instance based on extract mode
+                if (options.ExtractMode)
+                {
+                    var merger = new SimplifiedRpfMerger(options, Console.WriteLine);
+                    merger.Merge();
+                }
+                else
+                {
+                    var merger = new RpfMerger(options, Console.WriteLine);
+                    merger.Merge();
+                }
 
                 return 0;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\nFatal error: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
                 if (options.Verbose)
                 {
                     Console.WriteLine(ex.StackTrace);

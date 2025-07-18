@@ -31,5 +31,11 @@ namespace CodeWalker.DLCMerger
 
         [Option('d', "dry-run", Default = false, HelpText = "Perform a dry run without creating output file.")]
         public bool DryRun { get; set; }
+
+        [Option('a', "merge-all", Default = false, HelpText = "Merge all files without selective filtering (default is to only merge vehicle-related files).")]
+        public bool MergeAll { get; set; }
+
+        [Option('x', "extract", Default = false, HelpText = "Extract and merge to directory instead of creating RPF file.")]
+        public bool ExtractMode { get; set; }
     }
 }
