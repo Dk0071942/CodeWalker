@@ -1,29 +1,28 @@
 # CodeWalker DLC Merger
 
-A command-line tool for merging multiple GTA V DLC RPF files into a single RPF archive.
+A command-line tool for merging multiple GTA V DLC RPF files into a single organized directory structure.
 
 ## Features
 
-- **Merge multiple DLC RPF files** into one consolidated archive
+- **Merge multiple DLC RPF files** into one organized directory structure
 - **Recursive directory scanning** - automatically finds all RPF files in subdirectories
-- **RPF structure visualization** - shows detailed file/directory trees for debugging
-- **Intelligent conflict detection** - distinguishes between file, directory, and meta conflicts
+- **Intelligent selective merging** - focuses on vehicle-related content by default
+- **Smart XML/meta file merging** - combines metadata from multiple DLCs
 - **Flexible input methods** - individual files or entire directories
-- **Multiple encryption support** - NONE, OPEN, AES, NG encryption types
 - **Dry-run mode** - preview merge results without creating files
 - **Comprehensive logging** - verbose output with progress tracking
-- **Future-ready** - prepared for meta/xml file merging (Phase 2)
+- **Vehicle-focused filtering** - automatically excludes non-vehicle files
 
 ## Usage
 
 ```bash
-DLCMerger -i input1.rpf -i input2.rpf -o merged.rpf [options]
+DLCMerger -i input1.rpf -i input2.rpf -o merged_output_directory [options]
 ```
 
 **Or with directory input (recommended):**
 
 ```bash
-DLCMerger -i /path/to/dlc/folder -o merged.rpf [options]
+DLCMerger -i /path/to/dlc/folder -o merged_output_directory [options]
 ```
 
 ### Required Arguments
@@ -32,17 +31,17 @@ DLCMerger -i /path/to/dlc/folder -o merged.rpf [options]
   - **Files**: Specify individual RPF files: `-i file1.rpf -i file2.rpf`
   - **Directories**: Specify directories to scan recursively: `-i /path/to/dlc/folder`
   - **Mixed**: Combine both approaches: `-i file1.rpf -i /path/to/folder`
-- `-o, --output`: Output RPF file path.
+- `-o, --output`: Output directory path for merged DLC files.
 
 ### Optional Arguments
 
 - `-s, --show-structure`: Show detailed structure tree of input RPF files (helpful for debugging).
 - `-n, --expand-nested`: Expand nested RPF files to show their contents (enabled by default).
-- `-m, --merge-meta`: Enable merging of meta/xml files (experimental, not fully implemented yet).
+- `-m, --merge-meta`: Enable merging of meta/xml files (enabled by default).
 - `-v, --verbose`: Enable verbose output for detailed logging.
-- `-e, --encryption`: Encryption type for output RPF (NONE, OPEN, AES, NG). Default: OPEN.
-- `-f, --force`: Force overwrite output file if it exists.
-- `-d, --dry-run`: Perform a dry run without creating the output file.
+- `-f, --force`: Force overwrite output directory if it exists.
+- `-d, --dry-run`: Perform a dry run without creating the output directory.
+- `-a, --merge-all`: Merge all files without selective filtering (default is vehicle-focused).
 
 ### Input Directory Behavior
 
@@ -98,52 +97,46 @@ dlc.rpf
 ### 1. Merge all RPF files in a directory (recommended):
 ```bash
 # Recursively finds all RPF files in the directory and subdirectories
-DLCMerger -i /path/to/dlc/folder -o merged_dlc.rpf -v -s
+DLCMerger -i /path/to/dlc/folder -o merged_dlc_directory -v -s
 ```
 
-### 2. Dry run with full nested structure analysis:
+### 2. Dry run with structure analysis:
 ```bash
-# Preview the merge with nested RPF expansion, shows complete structure trees
-DLCMerger -i /path/to/dlc/folder -o merged_dlc.rpf -d -v -s -n
-```
-
-### 2b. Dry run without nested expansion (faster):
-```bash
-# Preview the merge showing only top-level RPF structure
-DLCMerger -i /path/to/dlc/folder -o merged_dlc.rpf -d -v -s --no-expand-nested
+# Preview the merge with structure analysis
+DLCMerger -i /path/to/dlc/folder -o merged_dlc_directory -d -v -s
 ```
 
 ### 3. Mixed input sources:
 ```bash
 # Combine specific files with directory scanning
-DLCMerger -i specific.rpf -i /path/to/folder -i another.rpf -o merged.rpf -v
+DLCMerger -i specific.rpf -i /path/to/folder -i another.rpf -o merged_directory -v
 ```
 
 ### 4. Basic merge of two DLC files:
 ```bash
-DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc.rpf
+DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc_directory
 ```
 
 ### 5. Merge with verbose output and force overwrite:
 ```bash
-DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc.rpf -v -f
+DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc_directory -v -f
 ```
 
 ### 6. Debug merge issues with structure trees:
 ```bash
 # Shows complete file structure of all input RPFs
-DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc.rpf -s -v -d
+DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc_directory -s -v -d
 ```
 
-### 7. Merge with specific encryption:
+### 7. Merge all files (not just vehicles):
 ```bash
-DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc.rpf -e AES
+DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_dlc_directory -a
 ```
 
 ### 8. Complex debugging scenario:
 ```bash
 # Comprehensive analysis with all debug options
-DLCMerger -i /complex/dlc/structure -o debug_merged.rpf -s -v -d -f
+DLCMerger -i /complex/dlc/structure -o debug_merged_directory -s -v -d -f
 ```
 
 ## Recursive Directory Scanning
@@ -264,16 +257,16 @@ The tool provides comprehensive logging with multiple verbosity levels:
 
 ## Current Limitations
 
-- **Meta/XML file merging**: Not yet implemented (placeholder only)
-- **Nested RPF merging**: While nested RPFs are read and analyzed for conflict detection, they are not extracted and merged (only top-level files are merged)
+- **RPF Output**: Only outputs directory structure, not RPF files
+- **Audio files**: Audio content is not currently processed
 - **Resource optimization**: Files are copied as-is without re-compression optimization
 - **Performance**: Large RPF files may take significant time to process, especially with nested RPF expansion enabled
 
-## Future Enhancements (Phase 2)
+## Future Enhancements
 
-- **Intelligent meta/xml file merging**: Combine vehicle variations, handling data, carcols, etc.
-- **Advanced conflict resolution**: User-configurable conflict resolution strategies
-- **Nested RPF merging**: Actually merge contents of nested RPF archives (currently only analyzed)
+- **RPF Output Mode**: Option to create merged RPF files instead of directory output
+- **Audio file processing**: Include audio content in merging process
+- **Advanced filtering**: More granular control over what gets merged
 - **Resource optimization**: Re-compress and optimize resources during merge
 - **Performance improvements**: Parallel processing and streaming operations
 - **GUI version**: Integrated with CodeWalker's main interface

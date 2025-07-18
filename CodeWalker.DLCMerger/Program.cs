@@ -23,23 +23,15 @@ namespace CodeWalker.DLCMerger
                 if (inputPaths.Count == 0)
                 {
                     Console.WriteLine("Error: No input files specified. Use -i to specify input files.");
-                    Console.WriteLine("Usage: DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged.rpf");
+                    Console.WriteLine("Usage: DLCMerger -i dlc1.rpf -i dlc2.rpf -o merged_output");
                     return 1;
                 }
                 
                 Console.WriteLine($"DLCMerger: {inputPaths.Count} inputs -> {options.OutputFile}");
 
-                // Create merger instance based on extract mode
-                if (options.ExtractMode)
-                {
-                    var merger = new SimplifiedRpfMerger(options, Console.WriteLine);
-                    merger.Merge();
-                }
-                else
-                {
-                    var merger = new RpfMerger(options, Console.WriteLine);
-                    merger.Merge();
-                }
+                // Create merger instance - using simplified merger that works correctly
+                var merger = new SimplifiedRpfMerger(options, Console.WriteLine);
+                merger.Merge();
 
                 return 0;
             }

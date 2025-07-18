@@ -8,7 +8,7 @@ namespace CodeWalker.DLCMerger
         [Option('i', "input", Required = true, HelpText = "Input RPF files or directories to merge. Specify multiple files/directories.")]
         public IEnumerable<string> InputFiles { get; set; } = new List<string>();
 
-        [Option('o', "output", Required = true, HelpText = "Output RPF file path.")]
+        [Option('o', "output", Required = true, HelpText = "Output directory path for merged DLC files.")]
         public string OutputFile { get; set; } = string.Empty;
 
         [Option('s', "show-structure", Default = false, HelpText = "Show detailed structure tree of input RPF files.")]
@@ -23,8 +23,6 @@ namespace CodeWalker.DLCMerger
         [Option('v', "verbose", Default = false, HelpText = "Enable verbose output.")]
         public bool Verbose { get; set; }
 
-        [Option('e', "encryption", Default = "OPEN", HelpText = "Encryption type for output RPF (NONE, OPEN, AES, NG).")]
-        public string Encryption { get; set; } = "OPEN";
 
         [Option('f', "force", Default = false, HelpText = "Force overwrite output file if it exists.")]
         public bool Force { get; set; }
@@ -35,7 +33,5 @@ namespace CodeWalker.DLCMerger
         [Option('a', "merge-all", Default = false, HelpText = "Merge all files without selective filtering (default is to only merge vehicle-related files).")]
         public bool MergeAll { get; set; }
 
-        [Option('x', "extract", Default = false, HelpText = "Extract and merge to directory instead of creating RPF file.")]
-        public bool ExtractMode { get; set; }
     }
 }

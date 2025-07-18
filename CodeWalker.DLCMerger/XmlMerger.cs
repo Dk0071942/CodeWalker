@@ -26,6 +26,8 @@ namespace CodeWalker.DLCMerger
   <residentAnims />
   <InitDatas>
   </InitDatas>
+  <txdRelationships>
+  </txdRelationships>
 </CVehicleModelInfo__InitDataList>",
 
             ["handling.meta"] = @"<CHandlingDataMgr>
@@ -46,6 +48,16 @@ namespace CodeWalker.DLCMerger
             ["vehiclelayouts.meta"] = @"<CVehicleMetadataMgr>
   <VehicleLayoutInfos>
   </VehicleLayoutInfos>
+  <VehicleEntryPointInfos>
+  </VehicleEntryPointInfos>
+  <VehicleExtraPointsInfos>
+  </VehicleExtraPointsInfos>
+  <VehicleEntryPointAnimInfos>
+  </VehicleEntryPointAnimInfos>
+  <VehicleSeatInfos>
+  </VehicleSeatInfos>
+  <VehicleSeatAnimInfos>
+  </VehicleSeatAnimInfos>
 </CVehicleMetadataMgr>",
 
             ["weaponarchetypes.meta"] = @"<CWeaponArchetypeDef>
@@ -191,26 +203,45 @@ namespace CodeWalker.DLCMerger
             
             // Parse template
             var mergedDoc = XDocument.Parse(template);
-            var itemsParent = FindItemsParent(mergedDoc, fileName);
             
-            if (itemsParent == null)
+            // Find all containers in the template that can hold items
+            var containers = FindAllContainers(mergedDoc);
+            
+            if (containers.Count == 0)
             {
-                _log($"    Could not find items parent in template for {fileName}");
+                _log($"    No containers found in template for {fileName}");
                 return files[0].data;
             }
             
-            // Collect all items from all sources
-            var allItems = new List<XElement>();
+            _log($"    Found {containers.Count} containers in template: {string.Join(", ", containers.Keys)}");
+            
+            // Collect items from all sources and organize by container
+            var containerItems = new Dictionary<string, List<XElement>>();
+            foreach (var containerName in containers.Keys)
+            {
+                containerItems[containerName] = new List<XElement>();
+            }
+            
             foreach (var (source, data) in files)
             {
                 try
                 {
                     var content = Encoding.UTF8.GetString(data);
                     var doc = XDocument.Parse(content);
-                    var items = ExtractItems(doc, fileName);
+                    var sourceContainers = FindAllContainers(doc);
                     
-                    _log($"    Extracted {items.Count} items from {source}");
-                    allItems.AddRange(items);
+                    int totalItems = 0;
+                    foreach (var (containerName, containerElement) in sourceContainers)
+                    {
+                        if (containerItems.ContainsKey(containerName))
+                        {
+                            var items = containerElement.Elements("Item").ToList();
+                            containerItems[containerName].AddRange(items);
+                            totalItems += items.Count;
+                        }
+                    }
+                    
+                    _log($"    Extracted {totalItems} items from {source}");
                 }
                 catch (Exception ex)
                 {
@@ -218,15 +249,38 @@ namespace CodeWalker.DLCMerger
                 }
             }
             
-            // Add all items to merged document
-            foreach (var item in allItems)
+            // Add all items to their respective containers in the merged document
+            int mergedTotal = 0;
+            foreach (var (containerName, items) in containerItems)
             {
-                itemsParent.Add(new XElement(item));
+                var container = containers[containerName];
+                foreach (var item in items)
+                {
+                    container.Add(new XElement(item));
+                    mergedTotal++;
+                }
             }
+            
+            _log($"    Merged {mergedTotal} items from {files.Count} sources across {containers.Count} containers");
             
             // Add XML declaration header
             var xmlString = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + mergedDoc.ToString();
             return Encoding.UTF8.GetBytes(xmlString);
+        }
+
+        private Dictionary<string, XElement> FindAllContainers(XDocument doc)
+        {
+            var containers = new Dictionary<string, XElement>();
+            
+            if (doc.Root == null) return containers;
+            
+            // Find all child elements of the root that can contain items
+            foreach (var element in doc.Root.Elements())
+            {
+                containers[element.Name.LocalName] = element;
+            }
+            
+            return containers;
         }
 
         private XElement? FindItemsParent(XDocument doc, string fileName)
