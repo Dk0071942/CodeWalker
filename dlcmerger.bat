@@ -19,25 +19,25 @@ setlocal enabledelayedexpansion
 ::
 :: Test Options:
 ::   -v             - Verbose output
-::   -s             - Simplified merger mode
+::   -s             - Show structure tree of RPF files
 ::   -f             - Force overwrite outputs
-::   -x             - Extract mode
+::   -d             - Dry run without creating output
 ::   -q             - Quick test (minimal output)
 ::
 :: Examples:
 ::   dlcmerger.bat                    - Build and test (debug)
 ::   dlcmerger.bat build release      - Build release version only
 ::   dlcmerger.bat test -v            - Run verbose tests
-::   dlcmerger.bat all release -s -v  - Build release and run simplified verbose tests
+::   dlcmerger.bat all release -v -f  - Build release and run verbose tests with force
 :: ==================================================================================
 
 :: Default values
 set "COMMAND=all"
 set "CONFIG=debug"
 set "VERBOSE="
-set "SIMPLIFIED="
+set "SHOW_STRUCTURE="
 set "FORCE="
-set "EXTRACT="
+set "DRY_RUN="
 set "QUICK="
 set "PROJECT_DIR=CodeWalker.DLCMerger"
 set "BUILD_SUCCESS=0"
@@ -53,9 +53,9 @@ if /i "%~1"=="help" set "COMMAND=help" & shift & goto parse_args
 if /i "%~1"=="debug" set "CONFIG=debug" & shift & goto parse_args
 if /i "%~1"=="release" set "CONFIG=release" & shift & goto parse_args
 if /i "%~1"=="-v" set "VERBOSE=-v" & shift & goto parse_args
-if /i "%~1"=="-s" set "SIMPLIFIED=-s" & shift & goto parse_args
+if /i "%~1"=="-s" set "SHOW_STRUCTURE=-s" & shift & goto parse_args
 if /i "%~1"=="-f" set "FORCE=-f" & shift & goto parse_args
-if /i "%~1"=="-x" set "EXTRACT=-x" & shift & goto parse_args
+if /i "%~1"=="-d" set "DRY_RUN=-d" & shift & goto parse_args
 if /i "%~1"=="-q" set "QUICK=1" & shift & goto parse_args
 echo Unknown argument: %~1
 shift
@@ -73,9 +73,9 @@ echo ===========================================================================
 echo Command: %COMMAND%
 echo Configuration: %CONFIG%
 if not "%VERBOSE%"=="" echo Verbose: ON
-if not "%SIMPLIFIED%"=="" echo Simplified: ON
+if not "%SHOW_STRUCTURE%"=="" echo Show Structure: ON
 if not "%FORCE%"=="" echo Force: ON
-if not "%EXTRACT%"=="" echo Extract: ON
+if not "%DRY_RUN%"=="" echo Dry Run: ON
 if not "%QUICK%"=="" echo Quick Test: ON
 echo.
 
@@ -165,9 +165,7 @@ if "%COMMAND%"=="build" goto success_exit
 goto run_tests
 
 :build_and_test
-call :build_project
-if errorlevel 1 goto error_exit
-goto run_tests
+goto build_project
 
 :run_tests
 if "%BUILD_SUCCESS%"=="0" (
@@ -199,11 +197,11 @@ if not exist "example_dlcs" (
 )
 
 :: Prepare test command
-set "TEST_CMD=DLCMerger.exe -i example_dlcs -o merged_output_test"
+set "TEST_CMD=DLCMerger.exe -i example_dlcs -o QQ2118473619DLCMerged1 -f"
 if not "%VERBOSE%"=="" set "TEST_CMD=!TEST_CMD! %VERBOSE%"
-if not "%SIMPLIFIED%"=="" set "TEST_CMD=!TEST_CMD! %SIMPLIFIED%"
+if not "%SHOW_STRUCTURE%"=="" set "TEST_CMD=!TEST_CMD! %SHOW_STRUCTURE%"
 if not "%FORCE%"=="" set "TEST_CMD=!TEST_CMD! %FORCE%"
-if not "%EXTRACT%"=="" set "TEST_CMD=!TEST_CMD! %EXTRACT%"
+if not "%DRY_RUN%"=="" set "TEST_CMD=!TEST_CMD! %DRY_RUN%"
 
 :: Run tests
 if "%QUICK%"=="1" (
@@ -251,16 +249,16 @@ echo   release        - Release build
 echo.
 echo Test Options:
 echo   -v             - Verbose output
-echo   -s             - Simplified merger mode
+echo   -s             - Show structure tree of RPF files
 echo   -f             - Force overwrite outputs
-echo   -x             - Extract mode
+echo   -d             - Dry run without creating output
 echo   -q             - Quick test (minimal output)
 echo.
 echo Examples:
 echo   dlcmerger.bat                    - Build and test (debug)
 echo   dlcmerger.bat build release      - Build release version only
 echo   dlcmerger.bat test -v            - Run verbose tests
-echo   dlcmerger.bat all release -s -v  - Build release and run simplified verbose tests
+echo   dlcmerger.bat all release -v -f  - Build release and run verbose tests with force
 echo   dlcmerger.bat clean              - Clean build artifacts
 echo.
 echo ==================================================================================
