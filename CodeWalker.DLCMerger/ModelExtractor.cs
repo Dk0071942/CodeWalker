@@ -24,80 +24,78 @@ namespace CodeWalker.DLCMerger
             _log = log;
         }
 
-        public ModelStats ExtractModels(RpfFile rpf, string vehiclesOutputDir, string weaponsOutputDir, bool mergeAll)
+        public ModelStats ExtractModels(RpfFile rpf, string vehiclesOutputDir, string weaponsOutputDir)
         {
             var stats = new ModelStats();
-            var allEntries = GetAllEntriesRecursive(rpf);
             
-            foreach (var entry in allEntries.OfType<RpfFileEntry>())
-            {
-                var fileName = entry.Name.ToLowerInvariant();
-                
-                // Check if it's a model file
-                if (!IsModelFile(fileName))
-                    continue;
-                
-                // Determine if it's a vehicle or weapon model
-                bool isWeaponModel = IsWeaponModel(fileName);
-                
-                // Skip non-vehicle models if selective merge is enabled
-                if (!mergeAll && !isWeaponModel && !IsVehicleModel(fileName))
-                {
-                    _log($"    Skipping non-vehicle model: {fileName}");
-                    continue;
-                }
-                
-                try
-                {
-                    // Extract the file
-                    var data = rpf.ExtractFile(entry);
-                    if (data == null) continue;
-                    
-                    // Determine output directory
-                    var outputDir = isWeaponModel ? weaponsOutputDir : vehiclesOutputDir;
-                    var outputPath = Path.Combine(outputDir, entry.Name);
-                    
-                    // Write the file
-                    File.WriteAllBytes(outputPath, data);
-                    
-                    // Update statistics
-                    if (isWeaponModel)
-                    {
-                        stats.WeaponModels++;
-                        _log($"    Extracted weapon model: {entry.Name}");
-                    }
-                    else
-                    {
-                        stats.VehicleModels++;
-                        _log($"    Extracted vehicle model: {entry.Name}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _log($"    ERROR extracting {entry.Name}: {ex.Message}");
-                }
-            }
+            // Extract models recursively, processing each RPF file directly
+            ExtractModelsRecursive(rpf, vehiclesOutputDir, weaponsOutputDir, stats);
             
             return stats;
         }
-
-        private List<RpfEntry> GetAllEntriesRecursive(RpfFile rpf)
+        
+        private void ExtractModelsRecursive(RpfFile rpf, string vehiclesOutputDir, string weaponsOutputDir, ModelStats stats)
         {
-            var entries = new List<RpfEntry>();
+            if (rpf.AllEntries == null) return;
             
-            if (rpf.AllEntries != null)
+            foreach (var entry in rpf.AllEntries)
             {
-                foreach (var entry in rpf.AllEntries)
+                if (entry is RpfFileEntry fileEntry)
                 {
-                    entries.Add(entry);
+                    var fileName = fileEntry.Name.ToLowerInvariant();
                     
+                    // If it's a model file, extract it immediately
+                    if (IsModelFile(fileName))
+                    {
+                        // Simple classification: weapon files go to weapons.rpf, everything else to vehicles.rpf
+                        bool isWeaponModel = IsWeaponModel(fileName);
+                        
+                        try
+                        {
+                            // Extract the file using raw extraction like RPF Explorer
+                            var data = fileEntry.File.ExtractFile(fileEntry);
+                            if (data == null) continue;
+                            
+                            // Add resource header if this is a resource file (like RPF Explorer does)
+                            RpfResourceFileEntry rrfe = fileEntry as RpfResourceFileEntry;
+                            if (rrfe != null)
+                            {
+                                // Compress the data first, then add header (matches RPF Explorer behavior)
+                                data = ResourceBuilder.Compress(data);
+                                data = ResourceBuilder.AddResourceHeader(rrfe, data);
+                            }
+                            
+                            // Determine output directory
+                            var outputDir = isWeaponModel ? weaponsOutputDir : vehiclesOutputDir;
+                            var outputPath = Path.Combine(outputDir, fileEntry.Name);
+                            
+                            // Write the file
+                            File.WriteAllBytes(outputPath, data);
+                            
+                            // Update statistics
+                            if (isWeaponModel)
+                            {
+                                stats.WeaponModels++;
+                                _log($"    Extracted weapon model: {fileEntry.Name}");
+                            }
+                            else
+                            {
+                                stats.VehicleModels++;
+                                _log($"    Extracted model: {fileEntry.Name}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _log($"    ERROR extracting {fileEntry.Name}: {ex.Message}");
+                        }
+                    }
                     // If it's a nested RPF, process it recursively
-                    if (entry is RpfFileEntry fileEntry && 
-                        fileEntry.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
+                    else if (fileEntry.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase))
                     {
                         try
                         {
-                            var data = rpf.ExtractFile(fileEntry);
+                            // Use raw extraction for nested RPFs
+                            var data = fileEntry.File.ExtractFile(fileEntry);
                             if (data != null)
                             {
                                 // Create temporary file for nested RPF
@@ -107,8 +105,10 @@ namespace CodeWalker.DLCMerger
                                 var nestedRpf = new RpfFile(tempPath, fileEntry.Path);
                                 nestedRpf.ScanStructure(null, null);
                                 
-                                var nestedEntries = GetAllEntriesRecursive(nestedRpf);
-                                entries.AddRange(nestedEntries);
+                                _log($"    Scanning nested RPF: {fileEntry.Name} ({nestedRpf.AllEntries?.Count ?? 0} entries)");
+                                
+                                // Recursively extract models from nested RPF
+                                ExtractModelsRecursive(nestedRpf, vehiclesOutputDir, weaponsOutputDir, stats);
                                 
                                 // Clean up temp file
                                 try { File.Delete(tempPath); } catch { }
@@ -121,9 +121,8 @@ namespace CodeWalker.DLCMerger
                     }
                 }
             }
-            
-            return entries;
         }
+
 
         private bool IsModelFile(string fileName)
         {
@@ -135,30 +134,9 @@ namespace CodeWalker.DLCMerger
 
         private bool IsWeaponModel(string fileName)
         {
-            // Weapon models typically start with 'w_'
+            // Simple weapon detection - anything that starts with 'w_' or contains 'weapon'
             return fileName.StartsWith("w_") || 
-                   fileName.Contains("weapon") ||
-                   fileName.Contains("_w_");
-        }
-
-        private bool IsVehicleModel(string fileName)
-        {
-            // Exclude ped models and other non-vehicle models
-            if (fileName.StartsWith("p_") ||      // Prop models
-                fileName.StartsWith("s_") ||      // Static models
-                fileName.StartsWith("v_") ||      // Some interior models
-                fileName.StartsWith("ig_") ||     // Cutscene models
-                fileName.StartsWith("cs_") ||     // Cutscene models
-                fileName.StartsWith("mp_") ||     // Multiplayer models
-                fileName.StartsWith("u_") ||      // Unknown/utility models
-                fileName.Contains("ped") ||       // Pedestrian models
-                fileName.Contains("player"))      // Player models
-            {
-                return false;
-            }
-            
-            // If it's not a weapon and not in the exclude list, consider it a vehicle
-            return !IsWeaponModel(fileName);
+                   fileName.Contains("weapon");
         }
     }
 }

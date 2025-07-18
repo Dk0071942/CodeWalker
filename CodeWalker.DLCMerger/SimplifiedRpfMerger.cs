@@ -154,10 +154,15 @@ namespace CodeWalker.DLCMerger
             var vehiclesDir = Path.Combine(outputDir, "dlc.rpf", "vehicles.rpf");
             var weaponsDir = Path.Combine(outputDir, "dlc.rpf", "weapons.rpf");
             
+            // Ensure directories exist
+            Directory.CreateDirectory(vehiclesDir);
+            Directory.CreateDirectory(weaponsDir);
+            _log($"Created directories: {vehiclesDir}, {weaponsDir}");
+            
             foreach (var rpf in inputRpfs)
             {
                 _log($"\nProcessing models from: {Path.GetFileName(rpf.Path)}");
-                var modelStats = _modelExtractor.ExtractModels(rpf, vehiclesDir, weaponsDir, _options.MergeAll);
+                var modelStats = _modelExtractor.ExtractModels(rpf, vehiclesDir, weaponsDir);
                 
                 _log($"  Extracted: {modelStats.VehicleModels} vehicle models, {modelStats.WeaponModels} weapon models");
             }
