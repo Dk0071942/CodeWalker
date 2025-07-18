@@ -19,6 +19,9 @@ namespace CodeWalker.DLCMerger
         private SelectiveMerger? _selectiveMerger;
 
         // XML Templates for each meta file type
+        // CRITICAL: These templates must match exact GTA V XML container structures
+        // Validated against manually extracted reference files from dlc1.rpf/common/data/
+        // See XML_TEMPLATE_STRUCTURE_DOCUMENTATION.md for detailed specifications
         private static readonly Dictionary<string, string> XmlTemplates = new Dictionary<string, string>
         {
             ["vehicles.meta"] = @"<CVehicleModelInfo__InitDataList>
@@ -35,15 +38,19 @@ namespace CodeWalker.DLCMerger
   </HandlingData>
 </CHandlingDataMgr>",
 
-            ["carcols.meta"] = @"<CVehicleModColours>
+            // Vehicle modification colors and kits - CORRECTED: CVehicleModelInfoVarGlobal (was CVehicleModColours)
+            // Must include <Lights /> element for proper GTA V compatibility
+            ["carcols.meta"] = @"<CVehicleModelInfoVarGlobal>
   <Kits>
   </Kits>
-</CVehicleModColours>",
+  <Lights />
+</CVehicleModelInfoVarGlobal>",
 
-            ["carvariations.meta"] = @"<CVehicleVariations>
+            // Vehicle color variations and liveries - CORRECTED: CVehicleModelInfoVariation (was CVehicleVariations)
+            ["carvariations.meta"] = @"<CVehicleModelInfoVariation>
   <variationData>
   </variationData>
-</CVehicleVariations>",
+</CVehicleModelInfoVariation>",
 
             ["vehiclelayouts.meta"] = @"<CVehicleMetadataMgr>
   <VehicleLayoutInfos>
