@@ -381,5 +381,216 @@ vehicles.meta (V) ←→ handling.meta (H) ←→ carvariations.meta (CA) ←→
 11. **Audio References**: Must be valid game audio
 12. **Layout References**: Must match vehicle type
 
+## Unique Identifier Tags for Data Files
+
+Each data file type has a specific unique identifier tag that serves as the primary key for linking data across different files:
+
+### 1. **vehicles.meta** - Vehicle Definition File
+- **Unique Tag**: `<modelName>` 
+- **Description**: The vehicle's model name that links to 3D model files (.yft, .ytd)
+- **Example**: `<modelName>t72b3m</modelName>`
+- **Usage**: Links vehicle data to model files and other meta files
+
+### 2. **handling.meta** - Vehicle Physics Data
+- **Unique Tag**: `<handlingName>`
+- **Description**: The handling identifier that defines vehicle physics properties
+- **Example**: `<handlingName>T72B3M</handlingName>`
+- **Usage**: Referenced by vehicles.meta `<handlingId>` field
+
+### 3. **carvariations.meta** - Vehicle Color & Customization Data
+- **Unique Tag**: `<modelName>` (within variationData/Item)
+- **Description**: The vehicle model name that defines color variations and customization options
+- **Example**: `<modelName>t72b3m</modelName>`
+- **Usage**: Links color variations to specific vehicle models
+
+### 4. **carcols.meta** - Vehicle Modification Kits
+- **Unique Tag**: `<kitName>` and `<id>`
+- **Description**: The modification kit name and unique numeric ID
+- **Example**: `<kitName>1781_t72b3m_modkit</kitName>` with `<id value="1781" />`
+- **Usage**: Referenced by carvariations.meta `<kits>` field
+
+### 5. **vehiclelayouts.meta** - Vehicle Seat & Animation Layout
+- **Unique Tag**: `<Name>` (within CVehicleLayoutInfo)
+- **Description**: The layout name that defines seat positions and entry animations
+- **Example**: `<Name>LAYOUT_T72B3</Name>`
+- **Usage**: Referenced by vehicles.meta `<layout>` field
+
+### 6. **vehicleweapons_[model].meta** - Vehicle Weapon Data
+- **Unique Tag**: `<Name>` (within weapon definitions)
+- **Description**: The weapon name or ammo type identifier
+- **Example**: `<Name>AMMO_HEAT_t90a</Name>`
+- **Usage**: Referenced by handling.meta weapon hash entries
+
+### 7. **explosion.meta** - Explosion Effect Data
+- **Unique Tag**: `<name>` (within explosion tag data)
+- **Description**: The explosion effect name identifier
+- **Example**: `<name>EXP_TAG_APFSDS_CANNON</name>`
+- **Usage**: Referenced by weapon projectile explosion settings
+
+### 8. **weaponarchetypes.meta** - Weapon Model Data
+- **Unique Tag**: `<modelName>`
+- **Description**: The weapon model name that links to weapon 3D files
+- **Example**: `<modelName>W_LR_DM11</modelName>`
+- **Usage**: Referenced by vehicle weapon definitions and projectile models
+
+### Primary Key Relationships Summary
+
+The unique identifier tags create a web of relationships:
+
+```
+vehicles.meta <modelName> ←→ carvariations.meta <modelName>
+vehicles.meta <handlingId> ←→ handling.meta <handlingName>
+vehicles.meta <layout> ←→ vehiclelayouts.meta <Name>
+carvariations.meta <kits> ←→ carcols.meta <kitName>
+handling.meta <weapons> ←→ vehicleweapons_*.meta <Name>
+weapon projectiles ←→ explosion.meta <name>
+weapon definitions ←→ weaponarchetypes.meta <modelName>
+```
+
+These unique tags are essential for:
+- **Data Integrity**: Ensuring all related data stays connected
+- **Merging Operations**: Identifying duplicate entries across files
+- **Validation**: Checking that all references exist
+- **Separation**: Maintaining relationships when splitting files
+
+## Vehicle Merging Logic and Conditional Requirements
+
+### Merging Order and Dependencies
+
+When merging vehicle data to the output, files must be processed in a specific order based on their dependencies and conditional requirements:
+
+#### 1. **Core Files (Always Required)**
+These files must always be merged for any vehicle:
+
+**vehicles.meta** → **handling.meta**
+- Both files are mandatory for any vehicle to function
+- Must be merged first as they contain essential vehicle definitions
+- The `<handlingId>` in vehicles.meta must have a corresponding `<handlingName>` in handling.meta
+
+#### 2. **Conditional Files (Merge Based on Usage)**
+
+##### **carvariations.meta and carcols.meta**
+Merge Logic:
+```
+1. First merge carvariations.meta
+2. Check each vehicle's <kits> entries:
+   - If kit = "0_default_modkit" → No specific kit needed, skip carcols check
+   - If kit ≠ "0_default_modkit" → Check if matching kit exists in carcols.meta
+3. For non-default kits:
+   - If kit has <visibleMods> with actual modifications → Keep both files
+   - If kit has empty <visibleMods> → Remove kit reference from carvariations
+   - Update carvariations.meta to remove references to empty kits
+```
+
+Example:
+```xml
+<!-- carvariations.meta -->
+<kits>
+    <Item>0_default_modkit</Item> <!-- No carcols needed -->
+    <Item>999_mycar_modkit</Item> <!-- Check carcols.meta -->
+</kits>
+
+<!-- carcols.meta - Check if kit has actual mods -->
+<Item>
+    <kitName>999_mycar_modkit</kitName>
+    <visibleMods>
+        <!-- If empty, remove kit reference from carvariations -->
+    </visibleMods>
+</Item>
+```
+
+##### **vehiclelayouts.meta**
+Merge Logic:
+```
+1. Check vehicles.meta <layout> field
+2. If layout references a custom layout (not standard game layout):
+   - Search vehiclelayouts.meta for matching <Name>
+   - If found → Include the layout file
+   - If not found → Ignore the layout file (vehicle will use default)
+3. Standard layouts (e.g., LAYOUT_STANDARD) don't need custom layout files
+```
+
+Example:
+```xml
+<!-- vehicles.meta -->
+<layout>LAYOUT_T72B3</layout> <!-- Custom layout, check if defined -->
+
+<!-- vehiclelayouts.meta -->
+<Name>LAYOUT_T72B3</Name> <!-- If this exists, include the file -->
+```
+
+### Merging Workflow
+
+```
+┌─────────────────┐
+│ vehicles.meta   │ ← Always merge first
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│ handling.meta   │ ← Always merge second
+└────────┬────────┘
+         │
+┌────────▼────────────────┐
+│ carvariations.meta      │ ← Merge and validate kits
+└────────┬────────────────┘
+         │
+┌────────▼────────────────┐
+│ Check kit requirements  │
+│ - Default kit? Skip     │
+│ - Custom kit? Validate  │
+└────────┬────────────────┘
+         │
+┌────────▼────────────────┐
+│ carcols.meta (if needed)│ ← Only if non-empty custom kits
+└────────┬────────────────┘
+         │
+┌────────▼────────────────┐
+│ Check layout usage      │
+│ - Custom layout? Check  │
+│ - Standard? Skip        │
+└────────┬────────────────┘
+         │
+┌────────▼────────────────┐
+│ vehiclelayouts.meta     │ ← Only if custom layout exists
+│ (if needed)             │
+└─────────────────────────┘
+```
+
+### Validation Rules for Conditional Merging
+
+1. **Kit Validation**:
+   - Empty kits should be removed from output
+   - Kit references in carvariations must be updated if kits are removed
+   - Default kit (0_default_modkit) requires no validation
+
+2. **Layout Validation**:
+   - Only include layout files for vehicles that actually use them
+   - Standard game layouts don't need custom definitions
+   - Missing custom layouts should generate warnings but not fail
+
+3. **Weapon Files** (if applicable):
+   - Only include vehicleweapons_*.meta if vehicle has weapons in handling.meta
+   - Include related explosion.meta and weaponarchetypes.meta entries
+
+### Output Structure After Conditional Merging
+
+```
+output/
+├── vehicles.meta          (always)
+├── handling.meta          (always)
+├── carvariations.meta     (always, but updated)
+├── carcols.meta          (only if non-empty kits exist)
+├── vehiclelayouts.meta   (only if custom layouts used)
+└── vehicleweapons_*.meta (only if vehicle has weapons)
+```
+
+### Best Practices for Merging
+
+1. **Preserve Data Integrity**: Never remove data without validation
+2. **Log Decisions**: Document why files were included or excluded
+3. **Update References**: Always update cross-file references when removing data
+4. **Maintain Backups**: Keep original files intact for reference
+5. **Validate Output**: Ensure all remaining references are valid
+
 ## Summary
 These constraints ensure that the GTA Auto Project maintains data integrity throughout all processing operations. Any modifications to the processing logic must respect these constraints to prevent game crashes, missing features, or data corruption.
