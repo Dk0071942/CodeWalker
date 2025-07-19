@@ -28,6 +28,12 @@ The CodeWalker solution consists of 12 projects organized into several categorie
 
 ## Documentation Contents
 
+### Quick References
+- **[Function Index](function_index.md)** - Complete searchable index of all functions and methods
+- **[Quick Reference](quick_reference.md)** - Common operations and code examples
+- **[Data Structures Reference](data_structures_reference.md)** - Core data types and relationships
+
+### Core Documentation
 ### 1. [Architecture Overview](architecture_overview.md)
 Comprehensive overview of the system architecture, component interactions, and design patterns used throughout CodeWalker.
 
@@ -45,6 +51,7 @@ Complete reference for all supported GTA V file types:
 - Audio files (AWC, REL)
 - Data files (META, PSO, XML, GXT2)
 
+### Application Documentation
 ### 4. [Main Application Documentation](main_application_documentation.md)
 Documentation for the primary CodeWalker application:
 - Forms and UI architecture
@@ -73,6 +80,7 @@ Documentation for specialized model viewers:
 - Animation playback
 - Metadata integration
 
+### Technical Deep Dives
 ### 8. [RPF Extraction System Documentation](rpf_extraction_documentation.md)
 Detailed documentation of the RPF extraction algorithms:
 - Core extraction pipeline and architecture
@@ -106,23 +114,39 @@ Comprehensive guide to YFT file compression and format conversion:
 
 ## Getting Started
 
-### Prerequisites
+### For Users
+1. Download the latest release from the repository
+2. Extract to a folder on your system
+3. Run `CodeWalker.exe`
+4. Configure the GTA V game folder in settings
+5. Start exploring and modding!
+
+### For Developers
+
+#### Prerequisites
 - Visual Studio 2022 or later
 - .NET Framework 4.8 SDK
 - .NET 8.0 SDK (for DLCMerger)
 - Windows 10 or later
 - DirectX 11 compatible graphics card
 
-### Building the Project
+#### Building the Project
 1. Clone the repository
 2. Open `CodeWalker.sln` in Visual Studio
 3. Restore NuGet packages
 4. Build the solution
 
-### Running CodeWalker
-1. Set `CodeWalker` as the startup project
-2. Configure the GTA V game folder in settings
-3. Run the application
+#### Finding Functions Quickly
+- **[Function Index](function_index.md)** - Comprehensive function catalog with search capability
+- **[Quick Reference](quick_reference.md)** - Common operations and code patterns
+- **[Data Structures Reference](data_structures_reference.md)** - Core data types and relationships
+
+#### Development Workflow
+1. **Understand the Architecture**: Start with [Architecture Overview](architecture_overview.md)
+2. **Find Existing Functions**: Use [Function Index](function_index.md) to locate existing functionality
+3. **Learn Data Structures**: Reference [Data Structures Reference](data_structures_reference.md)
+4. **Follow Patterns**: Use [Quick Reference](quick_reference.md) for common operations
+5. **Extend and Modify**: Follow existing patterns in the codebase
 
 ## File Format Support
 
@@ -193,3 +217,17 @@ CodeWalker is provided under its specific license terms. See the LICENSE file in
 ## Documentation Progress
 
 See [documentation_todo.md](documentation_todo.md) for the current documentation progress and remaining tasks.
+
+### Recent Documentation Additions
+
+The following new reference documents have been added to improve developer experience:
+
+- **[Function Index](function_index.md)** - Complete searchable catalog of all functions and methods in CodeWalker. Organized by category with usage examples and file locations.
+- **[Quick Reference](quick_reference.md)** - Quick lookup guide for common operations with code examples. Perfect for finding how to do specific tasks.
+- **[Data Structures Reference](data_structures_reference.md)** - Comprehensive reference for all core data types, classes, and their relationships. Includes memory layouts and usage patterns.
+
+These additions make it much easier to:
+- **Find existing functions** instead of reimplementing functionality
+- **Understand data relationships** between different file types
+- **Follow established patterns** when extending the codebase
+- **Quickly implement common operations** with copy-paste examples
