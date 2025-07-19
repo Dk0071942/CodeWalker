@@ -73,6 +73,20 @@ Documentation for specialized model viewers:
 - Animation playback
 - Metadata integration
 
+### 8. [RPF Extraction System Documentation](rpf_extraction_documentation.md)
+Detailed documentation of the RPF extraction algorithms:
+- Core extraction pipeline and architecture
+- Encryption and compression handling
+- API usage examples and code samples
+- Integration with UI and common use cases
+
+### 9. [YFT Compression and Conversion Documentation](yft_compression_documentation.md)
+Comprehensive guide to YFT file compression and format conversion:
+- RCS7 header format and structure
+- DEFLATE compression/decompression process
+- XML conversion capabilities (bidirectional)
+- Complete API examples for all conversion scenarios
+
 ## Key Technologies
 
 ### Programming Languages

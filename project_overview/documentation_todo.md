@@ -83,6 +83,8 @@
 10. ✅ specialized_tools_documentation.md - All remaining tools documented
 11. ✅ api_reference.md - Complete API reference for developers
 12. ✅ build_and_deployment_guide.md - Build instructions and deployment guide
+13. ✅ rpf_extraction_documentation.md - Detailed RPF extraction algorithms and API usage
+14. ✅ yft_compression_documentation.md - YFT compression/decompression and conversion guide
 
 ## Project Status: 
 **Documentation 100% Complete** - All components, tools, APIs, and deployment procedures have been thoroughly documented.

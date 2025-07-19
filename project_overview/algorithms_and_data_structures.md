@@ -137,6 +137,59 @@ public RpfEntry FindEntry(uint nameHash)
 }
 ```
 
+#### RPF Extraction Algorithm
+```csharp
+public byte[] ExtractFileBinary(RpfBinaryFileEntry entry, BinaryReader br)
+{
+    // Step 1: Calculate file position in archive
+    // Files are stored in 512-byte blocks
+    long offset = StartPos + ((long)entry.FileOffset * 512);
+    
+    // Step 2: Determine data size
+    // If FileSize > 0: file is compressed, FileSize = compressed size
+    // If FileSize == 0: file is uncompressed, use FileUncompressedSize
+    uint totlen = entry.FileSize + entry.FileUncompressedSize;
+    
+    // Step 3: Read raw data
+    byte[] rawData = new byte[totlen];
+    br.BaseStream.Position = offset;
+    br.Read(rawData, 0, (int)totlen);
+    
+    // Step 4: Decrypt if encrypted
+    byte[] decrypted = rawData;
+    if (entry.IsEncrypted)
+    {
+        if (IsAESEncrypted)
+        {
+            // AES encryption (newer files)
+            decrypted = GTACrypto.DecryptAES(rawData);
+        }
+        else
+        {
+            // NG encryption (legacy)
+            // Uses filename and file size as part of key
+            decrypted = GTACrypto.DecryptNG(rawData, entry.Name, entry.FileUncompressedSize);
+        }
+    }
+    
+    // Step 5: Decompress if compressed
+    byte[] final = decrypted;
+    if (entry.FileSize > 0)
+    {
+        // ZLIB decompression
+        using (var ms = new MemoryStream(decrypted))
+        using (var ds = new DeflateStream(ms, CompressionMode.Decompress))
+        using (var output = new MemoryStream())
+        {
+            ds.CopyTo(output);
+            final = output.ToArray();
+        }
+    }
+    
+    return final;
+}
+```
+
 ### 2. Level of Detail (LOD) Selection
 
 #### Distance-Based LOD Algorithm
@@ -202,7 +255,65 @@ graph TD
     Priority --> |Type| P3[Texture > Model]
 ```
 
-### 5. XML Merging Algorithm (DLCMerger)
+### 5. Resource Compression (RCS7 Format)
+
+#### RCS7 Header Processing
+```csharp
+// RCS7 files use a specific header format for compressed resources
+public static RpfResourceFileEntry CreateResourceFileEntry(ref byte[] data, uint ver)
+{
+    uint magic = BitConverter.ToUInt32(data, 0);
+    if (magic == 0x37435352) // 'RSC7'
+    {
+        // Extract header information
+        int version = BitConverter.ToInt32(data, 4);
+        uint systemFlags = BitConverter.ToUInt32(data, 8);
+        uint graphicsFlags = BitConverter.ToUInt32(data, 12);
+        
+        // Strip header from data
+        byte[] content = new byte[data.Length - 16];
+        Buffer.BlockCopy(data, 16, content, 0, content.Length);
+        data = content;
+        
+        return new RpfResourceFileEntry
+        {
+            SystemFlags = systemFlags,
+            GraphicsFlags = graphicsFlags,
+            Version = version
+        };
+    }
+}
+```
+
+#### Resource Building Algorithm
+```csharp
+public static byte[] Build(ResourceFileBase fileBase, int version, bool compress)
+{
+    // Step 1: Separate blocks into system and graphics
+    GetBlocks(fileBase, out systemBlocks, out graphicBlocks);
+    
+    // Step 2: Assign memory positions with page allocation
+    // System blocks at 0x50000000, Graphics at 0x60000000
+    AssignPositions(systemBlocks, 0x50000000, out systemPageFlags);
+    AssignPositions(graphicBlocks, 0x60000000, out graphicsPageFlags);
+    
+    // Step 3: Write blocks to streams
+    foreach (var block in systemBlocks)
+    {
+        writer.Position = block.FilePosition;
+        block.Write(writer);
+    }
+    
+    // Step 4: Combine and compress
+    byte[] combined = CombineStreams(systemStream, graphicsStream);
+    byte[] compressed = compress ? Compress(combined) : combined;
+    
+    // Step 5: Add RCS7 header
+    return AddHeader(compressed, version, systemPageFlags, graphicsPageFlags);
+}
+```
+
+### 6. XML Merging Algorithm (DLCMerger)
 
 #### Template-Based Container Merging
 ```csharp
