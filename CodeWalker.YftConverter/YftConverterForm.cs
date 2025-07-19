@@ -106,12 +106,34 @@ namespace CodeWalker.YftConverter
                 var outputPath = OutputFolderTextBox.Text;
                 var searchOption = IncludeSubfoldersCheckBox.Checked ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
                 var overwrite = OverwriteFilesCheckBox.Checked;
-                var outputFormat = Gen9YftRadioButton.Checked ? OutputFormat.Gen9Yft : OutputFormat.Gen8Xml;
+                OutputFormat outputFormat;
+                if (Gen8YftRadioButton.Checked)
+                    outputFormat = OutputFormat.Gen8Yft;
+                else if (Gen9YftRadioButton.Checked)
+                    outputFormat = OutputFormat.Gen9Yft;
+                else
+                    outputFormat = OutputFormat.Gen8Xml;
 
                 var files = Directory.GetFiles(inputPath, "*.yft", searchOption);
                 
                 UpdateLog($"Found {files.Length} YFT files to process.");
-                UpdateLog($"Output format: {(outputFormat == OutputFormat.Gen9Yft ? "Gen9 YFT (Compressed)" : "Gen8 XML")}");
+                string formatDescription;
+                switch (outputFormat)
+                {
+                    case OutputFormat.Gen8Yft:
+                        formatDescription = "Gen8 YFT (Compressed)";
+                        break;
+                    case OutputFormat.Gen9Yft:
+                        formatDescription = "Gen9 YFT (Compressed)";
+                        break;
+                    case OutputFormat.Gen8Xml:
+                        formatDescription = "XML";
+                        break;
+                    default:
+                        formatDescription = "Unknown";
+                        break;
+                }
+                UpdateLog($"Output format: {formatDescription}");
                 UpdateLog("Starting conversion...\n");
 
                 UpdateProgress(0, files.Length);
@@ -173,39 +195,71 @@ namespace CodeWalker.YftConverter
 
         private void ConvertYftFile(string inputFile, string outputFile, OutputFormat format)
         {
-            // Load the YFT file
-            var yft = new YftFile();
-            yft.Load(File.ReadAllBytes(inputFile));
-
-            if (format == OutputFormat.Gen8Xml)
+            var inputData = File.ReadAllBytes(inputFile);
+            
+            // Check if it's an uncompressed YFT (memory dump)
+            bool isUncompressed = false;
+            if (inputData.Length >= 4)
             {
-                // Convert to XML format
-                var xml = YftXml.GetXml(yft);
-                var xdoc = new XmlDocument();
-                xdoc.LoadXml(xml);
-                
-                // Save as formatted XML
-                using (var writer = XmlWriter.Create(outputFile, new XmlWriterSettings
-                {
-                    Indent = true,
-                    IndentChars = "  ",
-                    NewLineChars = "\r\n",
-                    NewLineHandling = NewLineHandling.Replace
-                }))
-                {
-                    xdoc.Save(writer);
-                }
+                string header = System.Text.Encoding.ASCII.GetString(inputData, 0, 4);
+                isUncompressed = (header == "FRAG");
             }
-            else // OutputFormat.Gen9Yft
+            
+            if (isUncompressed)
             {
-                // Convert to Gen9 YFT compressed format
-                // The YFT is already in the correct format after loading
-                // If you need specific Gen9 conversion, add it here:
-                // yft.ConvertToGen9Format(); // Implement this method in YftFile if needed
+                // Use the YftConverter for uncompressed files
+                var converter = new YftConverter(verbose: false);
                 
-                // Save the YFT file
-                var data = yft.Save();
-                File.WriteAllBytes(outputFile, data);
+                CodeWalker.YftConverter.OutputFormat converterFormat;
+                switch (format)
+                {
+                    case OutputFormat.Gen8Yft:
+                        converterFormat = CodeWalker.YftConverter.OutputFormat.Gen8YFT;
+                        break;
+                    case OutputFormat.Gen9Yft:
+                        converterFormat = CodeWalker.YftConverter.OutputFormat.Gen9YFT;
+                        break;
+                    case OutputFormat.Gen8Xml:
+                        converterFormat = CodeWalker.YftConverter.OutputFormat.XML;
+                        break;
+                    default:
+                        throw new ArgumentException($"Unknown output format: {format}");
+                }
+                
+                converter.ConvertUncompressedYFT(inputFile, outputFile, converterFormat);
+            }
+            else
+            {
+                // Handle already compressed YFT files
+                var yft = new YftFile();
+                yft.Load(inputData);
+
+                if (format == OutputFormat.Gen8Xml)
+                {
+                    // Convert to XML format
+                    var xml = YftXml.GetXml(yft);
+                    var xdoc = new XmlDocument();
+                    xdoc.LoadXml(xml);
+                    
+                    // Save as formatted XML
+                    using (var writer = XmlWriter.Create(outputFile, new XmlWriterSettings
+                    {
+                        Indent = true,
+                        IndentChars = "  ",
+                        NewLineChars = "\r\n",
+                        NewLineHandling = NewLineHandling.Replace
+                    }))
+                    {
+                        xdoc.Save(writer);
+                    }
+                }
+                else
+                {
+                    // Convert to compressed YFT format
+                    RpfManager.IsGen9 = (format == OutputFormat.Gen9Yft);
+                    var data = yft.Save();
+                    File.WriteAllBytes(outputFile, data);
+                }
             }
         }
 
@@ -275,6 +329,7 @@ namespace CodeWalker.YftConverter
         private enum OutputFormat
         {
             Gen8Xml,
+            Gen8Yft,
             Gen9Yft
         }
     }

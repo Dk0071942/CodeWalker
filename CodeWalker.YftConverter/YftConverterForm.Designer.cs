@@ -37,6 +37,7 @@ namespace CodeWalker.YftConverter
             this.OutputFolderBrowseButton = new System.Windows.Forms.Button();
             this.OutputFormatGroupBox = new System.Windows.Forms.GroupBox();
             this.Gen8XmlRadioButton = new System.Windows.Forms.RadioButton();
+            this.Gen8YftRadioButton = new System.Windows.Forms.RadioButton();
             this.Gen9YftRadioButton = new System.Windows.Forms.RadioButton();
             this.OptionsGroupBox = new System.Windows.Forms.GroupBox();
             this.IncludeSubfoldersCheckBox = new System.Windows.Forms.CheckBox();
@@ -56,7 +57,7 @@ namespace CodeWalker.YftConverter
             this.DescriptionLabel.Name = "DescriptionLabel";
             this.DescriptionLabel.Size = new System.Drawing.Size(610, 20);
             this.DescriptionLabel.TabIndex = 0;
-            this.DescriptionLabel.Text = "Convert YFT files between different formats (Gen8 XML and Gen9 YFT Compressed).";
+            this.DescriptionLabel.Text = "Convert YFT files between different formats (Gen8 YFT, Gen9 YFT, and XML).";
             // 
             // InputFolderLabel
             // 
@@ -119,10 +120,11 @@ namespace CodeWalker.YftConverter
             // OutputFormatGroupBox
             // 
             this.OutputFormatGroupBox.Controls.Add(this.Gen8XmlRadioButton);
+            this.OutputFormatGroupBox.Controls.Add(this.Gen8YftRadioButton);
             this.OutputFormatGroupBox.Controls.Add(this.Gen9YftRadioButton);
             this.OutputFormatGroupBox.Location = new System.Drawing.Point(15, 89);
             this.OutputFormatGroupBox.Name = "OutputFormatGroupBox";
-            this.OutputFormatGroupBox.Size = new System.Drawing.Size(300, 65);
+            this.OutputFormatGroupBox.Size = new System.Drawing.Size(300, 85);
             this.OutputFormatGroupBox.TabIndex = 7;
             this.OutputFormatGroupBox.TabStop = false;
             this.OutputFormatGroupBox.Text = "Output Format";
@@ -130,12 +132,22 @@ namespace CodeWalker.YftConverter
             // Gen8XmlRadioButton
             // 
             this.Gen8XmlRadioButton.AutoSize = true;
-            this.Gen8XmlRadioButton.Location = new System.Drawing.Point(10, 19);
+            this.Gen8XmlRadioButton.Location = new System.Drawing.Point(10, 61);
             this.Gen8XmlRadioButton.Name = "Gen8XmlRadioButton";
-            this.Gen8XmlRadioButton.Size = new System.Drawing.Size(77, 17);
-            this.Gen8XmlRadioButton.TabIndex = 0;
-            this.Gen8XmlRadioButton.Text = "Gen8 XML";
+            this.Gen8XmlRadioButton.Size = new System.Drawing.Size(47, 17);
+            this.Gen8XmlRadioButton.TabIndex = 2;
+            this.Gen8XmlRadioButton.Text = "XML";
             this.Gen8XmlRadioButton.UseVisualStyleBackColor = true;
+            // 
+            // Gen8YftRadioButton
+            // 
+            this.Gen8YftRadioButton.AutoSize = true;
+            this.Gen8YftRadioButton.Location = new System.Drawing.Point(10, 19);
+            this.Gen8YftRadioButton.Name = "Gen8YftRadioButton";
+            this.Gen8YftRadioButton.Size = new System.Drawing.Size(146, 17);
+            this.Gen8YftRadioButton.TabIndex = 0;
+            this.Gen8YftRadioButton.Text = "Gen8 YFT (Compressed)";
+            this.Gen8YftRadioButton.UseVisualStyleBackColor = true;
             // 
             // Gen9YftRadioButton
             // 
@@ -155,7 +167,7 @@ namespace CodeWalker.YftConverter
             this.OptionsGroupBox.Controls.Add(this.OverwriteFilesCheckBox);
             this.OptionsGroupBox.Location = new System.Drawing.Point(321, 89);
             this.OptionsGroupBox.Name = "OptionsGroupBox";
-            this.OptionsGroupBox.Size = new System.Drawing.Size(301, 65);
+            this.OptionsGroupBox.Size = new System.Drawing.Size(301, 85);
             this.OptionsGroupBox.TabIndex = 8;
             this.OptionsGroupBox.TabStop = false;
             this.OptionsGroupBox.Text = "Options";
@@ -186,7 +198,7 @@ namespace CodeWalker.YftConverter
             // 
             // ProcessButton
             // 
-            this.ProcessButton.Location = new System.Drawing.Point(15, 160);
+            this.ProcessButton.Location = new System.Drawing.Point(15, 180);
             this.ProcessButton.Name = "ProcessButton";
             this.ProcessButton.Size = new System.Drawing.Size(75, 23);
             this.ProcessButton.TabIndex = 9;
@@ -198,7 +210,7 @@ namespace CodeWalker.YftConverter
             // 
             this.StatusProgressBar.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.StatusProgressBar.Location = new System.Drawing.Point(96, 160);
+            this.StatusProgressBar.Location = new System.Drawing.Point(96, 180);
             this.StatusProgressBar.Name = "StatusProgressBar";
             this.StatusProgressBar.Size = new System.Drawing.Size(526, 23);
             this.StatusProgressBar.TabIndex = 10;
@@ -210,7 +222,7 @@ namespace CodeWalker.YftConverter
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.LogTextBox.BackColor = System.Drawing.SystemColors.Control;
-            this.LogTextBox.Location = new System.Drawing.Point(15, 189);
+            this.LogTextBox.Location = new System.Drawing.Point(15, 209);
             this.LogTextBox.Multiline = true;
             this.LogTextBox.Name = "LogTextBox";
             this.LogTextBox.ReadOnly = true;
@@ -259,6 +271,7 @@ namespace CodeWalker.YftConverter
         private System.Windows.Forms.Button OutputFolderBrowseButton;
         private System.Windows.Forms.GroupBox OutputFormatGroupBox;
         private System.Windows.Forms.RadioButton Gen8XmlRadioButton;
+        private System.Windows.Forms.RadioButton Gen8YftRadioButton;
         private System.Windows.Forms.RadioButton Gen9YftRadioButton;
         private System.Windows.Forms.GroupBox OptionsGroupBox;
         private System.Windows.Forms.CheckBox IncludeSubfoldersCheckBox;

@@ -2,6 +2,7 @@ using CodeWalker.GameFiles;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
@@ -20,12 +21,12 @@ namespace CodeWalker.YftConverter
         }
 
         /// <summary>
-        /// Converts an uncompressed YFT (memory dump) directly to compressed YFT format
+        /// Converts an uncompressed YFT (memory dump) to various output formats
         /// </summary>
         /// <param name="inputPath">Path to the input uncompressed YFT file</param>
-        /// <param name="outputPath">Path to the output compressed YFT file</param>
-        /// <param name="useGen9">True for Gen9 compression (version 171), false for Gen8 (version 162). Default: false</param>
-        public void ConvertUncompressedToCompressed(string inputPath, string outputPath, bool useGen9 = false)
+        /// <param name="outputPath">Path to the output file</param>
+        /// <param name="outputFormat">Output format: Gen8YFT, Gen9YFT, or XML</param>
+        public void ConvertUncompressedYFT(string inputPath, string outputPath, OutputFormat outputFormat)
         {
             if (!File.Exists(inputPath))
             {
@@ -37,23 +38,92 @@ namespace CodeWalker.YftConverter
                 Console.WriteLine($"Loading uncompressed YFT: {inputPath}");
             }
 
-            // Load the uncompressed YFT data
-            var memoryDump = File.ReadAllBytes(inputPath);
-            
-            Console.WriteLine($"File size: {memoryDump.Length:N0} bytes");
-            
-            // Always show debug info to understand the file structure
-            Console.WriteLine("First 20 uint64 values in file:");
-            for (int i = 0; i < Math.Min(20 * 8, memoryDump.Length - 8); i += 8)
+            // Validate file size
+            var fileInfo = new FileInfo(inputPath);
+            if (fileInfo.Length == 0)
             {
-                ulong val = BitConverter.ToUInt64(memoryDump, i);
-                Console.WriteLine($"  Offset 0x{i:X4}: 0x{val:X16}");
+                throw new Exception("Input file is empty");
             }
             
-            // Check if it's a memory dump (starts with "FRAG")
-            if (memoryDump.Length < 4 || System.Text.Encoding.ASCII.GetString(memoryDump, 0, 4) != "FRAG")
+            if (fileInfo.Length > 500 * 1024 * 1024) // 500MB limit
             {
-                throw new Exception("Input file is not an uncompressed YFT (doesn't start with FRAG)");
+                throw new Exception($"Input file is too large ({fileInfo.Length:N0} bytes). Maximum supported size is 500MB.");
+            }
+
+            // Load the YFT data
+            byte[] memoryDump;
+            try
+            {
+                memoryDump = File.ReadAllBytes(inputPath);
+            }
+            catch (IOException ioEx)
+            {
+                throw new Exception($"Failed to read input file: {ioEx.Message}", ioEx);
+            }
+            
+            Console.WriteLine($"File: {Path.GetFileName(inputPath)}");
+            Console.WriteLine($"Size: {memoryDump.Length:N0} bytes ({memoryDump.Length / 1024.0 / 1024.0:F2} MB)");
+            
+            // Validate file content
+            if (memoryDump.Length < 16)
+            {
+                throw new Exception("Input file is too small to be a valid YFT file (minimum 16 bytes required)");
+            }
+            
+            // Check file header
+            string header = System.Text.Encoding.ASCII.GetString(memoryDump, 0, 4);
+            bool isUncompressed = (header == "FRAG");
+            bool isCompressed = (header == "RSC7");
+            
+            if (!isUncompressed && !isCompressed)
+            {
+                // Show diagnostic info for unknown format
+                Console.WriteLine("WARNING: File doesn't start with expected header (FRAG or RSC7)");
+                Console.WriteLine($"Header found: {header} (0x{BitConverter.ToUInt32(memoryDump, 0):X8})");
+                
+                if (verbose)
+                {
+                    Console.WriteLine("\nFirst 256 bytes of file (hex):");
+                    for (int i = 0; i < Math.Min(256, memoryDump.Length); i += 16)
+                    {
+                        Console.Write($"  0x{i:X4}: ");
+                        for (int j = 0; j < 16 && i + j < memoryDump.Length; j++)
+                        {
+                            Console.Write($"{memoryDump[i + j]:X2} ");
+                        }
+                        Console.WriteLine();
+                    }
+                }
+            }
+            
+            if (isCompressed)
+            {
+                throw new Exception("Input file appears to be a compressed YFT (RSC7 header). This converter is for uncompressed YFT files.");
+            }
+            
+            if (!isUncompressed)
+            {
+                throw new Exception($"Input file is not a valid uncompressed YFT. Expected 'FRAG' header but found '{header}'.");
+            }
+            
+            // Additional validation for FRAG files
+            if (verbose)
+            {
+                Console.WriteLine("\nFile structure analysis:");
+                Console.WriteLine($"  Header: {header}");
+                
+                // Show first few pointers/values for debugging
+                Console.WriteLine("\n  First 10 uint64 values:");
+                for (int i = 0; i < Math.Min(10 * 8, memoryDump.Length - 8); i += 8)
+                {
+                    ulong val = BitConverter.ToUInt64(memoryDump, i);
+                    string ptrInfo = "";
+                    if (IsMemoryPointer(val))
+                    {
+                        ptrInfo = " [Pointer]";
+                    }
+                    Console.WriteLine($"    Offset 0x{i:X4}: 0x{val:X16}{ptrInfo}");
+                }
             }
             
             if (verbose)
@@ -64,8 +134,21 @@ namespace CodeWalker.YftConverter
             
             try
             {
-                // Try to load and save using CodeWalker's native YFT handling
-                LoadAndSaveUsingNativeYft(memoryDump, outputPath, useGen9);
+                // Route to appropriate conversion method based on output format
+                switch (outputFormat)
+                {
+                    case OutputFormat.XML:
+                        ConvertToXml(memoryDump, outputPath);
+                        break;
+                    case OutputFormat.Gen8YFT:
+                        ConvertToCompressedYft(memoryDump, outputPath, false);
+                        break;
+                    case OutputFormat.Gen9YFT:
+                        ConvertToCompressedYft(memoryDump, outputPath, true);
+                        break;
+                    default:
+                        throw new ArgumentException($"Unknown output format: {outputFormat}");
+                }
             }
             catch (Exception ex)
             {
@@ -75,23 +158,33 @@ namespace CodeWalker.YftConverter
                     Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
                 
-                try
+                // Provide more helpful error messages
+                string errorMessage = ex.Message;
+                
+                if (ex.InnerException is InvalidDataException)
                 {
-                    // Try direct memory conversion as second attempt
-                    DirectMemoryConversion(memoryDump, outputPath, useGen9);
+                    errorMessage = "The file contains invalid or corrupted data that cannot be processed. " +
+                                 "This often happens with incomplete memory dumps or damaged files.";
                 }
-                catch (Exception ex2)
+                else if (ex.Message.IndexOf("out of range", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         ex.Message.IndexOf("index", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    if (verbose)
+                    errorMessage = "The file structure appears to be incomplete or truncated. " +
+                                 "Ensure the entire YFT memory dump was extracted correctly.";
+                }
+                
+                if (verbose)
+                {
+                    Console.WriteLine($"\nERROR: {errorMessage}");
+                    Console.WriteLine($"\nOriginal error: {ex.Message}");
+                    if (ex.InnerException != null)
                     {
-                        Console.WriteLine($"Failed to convert: {ex2.Message}");
-                        Console.WriteLine($"Stack trace: {ex2.StackTrace}");
+                        Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
                     }
-                    
-                    // Fallback to simple compression if pointer conversion fails
-                    Console.WriteLine("Attempting fallback method (simple compression)...");
-                    SimpleFallbackCompression(memoryDump, outputPath, useGen9);
+                    Console.WriteLine($"\nStack trace:\n{ex.StackTrace}");
                 }
+                
+                throw new Exception(errorMessage, ex);
             }
         }
 
@@ -409,362 +502,230 @@ namespace CodeWalker.YftConverter
         }
 
         /// <summary>
-        /// Load and save using CodeWalker's native YFT handling
+        /// Convert to compressed YFT format (Gen8 or Gen9)
         /// </summary>
-        private void LoadAndSaveUsingNativeYft(byte[] memoryDump, string outputPath, bool useGen9)
-        {
-            if (verbose)
-            {
-                Console.WriteLine("Using native YFT loading approach...");
-            }
-            
-            // The memory dump is already in the correct format for loading
-            // Set generation mode based on parameter
-            RpfManager.IsGen9 = useGen9;
-            
-            if (verbose)
-            {
-                Console.WriteLine($"Using {(useGen9 ? "Gen9" : "Gen8")} mode (version {(useGen9 ? 171 : 162)})");
-            }
-            
-            // Create a proper resource entry with appropriate flags
-            var systemSize = memoryDump.Length;
-            var graphicsSize = 0;
-            var version = useGen9 ? 171u : 162u;
-            var systemFlags = RpfResourceFileEntry.GetFlagsFromSize(systemSize, version);
-            var graphicsFlags = 0u; // No graphics data
-            
-            var resentry = new RpfResourceFileEntry();
-            resentry.SystemFlags = new RpfResourcePageFlags(systemFlags);
-            resentry.GraphicsFlags = new RpfResourcePageFlags(graphicsFlags);
-            
-            // Create YftFile and load it
-            var yft = new YftFile();
-            
-            // Load using the memory dump data
-            // The YftFile.Load method expects the data with RpfResourceFileEntry
-            yft.Load(memoryDump, resentry);
-            
-            if (yft.Fragment == null)
-            {
-                throw new Exception("Failed to load Fragment from memory dump");
-            }
-            
-            if (verbose)
-            {
-                Console.WriteLine("Successfully loaded YFT from memory dump.");
-                Console.WriteLine($"Fragment loaded: {yft.Fragment != null}");
-                if (yft.Fragment != null)
-                {
-                    Console.WriteLine($"Has Drawable: {yft.Fragment.Drawable != null}");
-                    Console.WriteLine($"Has Physics: {yft.Fragment.PhysicsLODGroup != null}");
-                    Console.WriteLine($"Bounding sphere: Center=({yft.Fragment.BoundingSphereCenter.X:F6}, {yft.Fragment.BoundingSphereCenter.Y:F6}, {yft.Fragment.BoundingSphereCenter.Z:F6}), Radius={yft.Fragment.BoundingSphereRadius:F6}");
-                }
-            }
-            
-            // Save the YFT file - this will handle all the compression and header creation
-            var compressedData = yft.Save();
-            
-            if (compressedData == null || compressedData.Length == 0)
-            {
-                throw new Exception("Failed to save YFT - data is empty");
-            }
-            
-            // Write output
-            var outputDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-            
-            File.WriteAllBytes(outputPath, compressedData);
-            
-            if (verbose)
-            {
-                Console.WriteLine($"Compressed YFT written to: {outputPath}");
-                Console.WriteLine($"File size: {compressedData.Length:N0} bytes");
-                Console.WriteLine($"Compression ratio: {(compressedData.Length * 100.0 / memoryDump.Length):F1}%");
-            }
-        }
-
-        /// <summary>
-        /// Direct memory conversion approach - converts pointers in place
-        /// </summary>
-        private void DirectMemoryConversion(byte[] memoryDump, string outputPath, bool useGen9)
-        {
-            if (verbose)
-            {
-                Console.WriteLine("Using direct memory conversion approach...");
-            }
-            
-            // Create a copy of the memory dump to modify
-            var modifiedDump = new byte[memoryDump.Length];
-            Buffer.BlockCopy(memoryDump, 0, modifiedDump, 0, memoryDump.Length);
-            
-            // Find and convert all pointers in the dump
-            int pointerCount = 0;
-            for (int offset = 0; offset < modifiedDump.Length - 8; offset += 8)
-            {
-                ulong value = BitConverter.ToUInt64(modifiedDump, offset);
-                
-                // Check if this looks like a pointer
-                if (IsMemoryPointer(value))
-                {
-                    // Convert absolute pointer to relative
-                    // The pointer already contains the base address, we just need to ensure it's properly formatted
-                    ulong newPointer = value; // Keep the pointer as-is since it's already in the right format
-                    
-                    // Write the pointer back
-                    BitConverter.GetBytes(newPointer).CopyTo(modifiedDump, offset);
-                    pointerCount++;
-                }
-            }
-            
-            if (verbose)
-            {
-                Console.WriteLine($"Converted {pointerCount} pointers in place.");
-            }
-            
-            // Now load this as a YFT using the memory dump directly
-            // Split into system and graphics memory based on content
-            // For now, treat everything as system memory
-            var systemSize = modifiedDump.Length;
-            var graphicsSize = 0;
-            
-            // Create resource entry
-            var version = useGen9 ? 171u : 162u;
-            var resentry = new RpfResourceFileEntry();
-            resentry.SystemFlags = new RpfResourcePageFlags(RpfResourceFileEntry.GetFlagsFromSize(systemSize, version));
-            resentry.GraphicsFlags = new RpfResourcePageFlags(RpfResourceFileEntry.GetFlagsFromSize(graphicsSize, version));
-            
-            // Create a ResourceDataReader
-            var reader = new ResourceDataReader(resentry, modifiedDump, Endianess.LittleEndian);
-            reader.Position = 0x50000000; // Set to system memory base
-            
-            // Read the FragType
-            var fragment = reader.ReadBlock<FragType>();
-            
-            if (fragment == null)
-            {
-                throw new Exception("Failed to parse FragType from memory dump");
-            }
-            
-            // Create YFT file
-            var yft = new YftFile();
-            yft.Fragment = fragment;
-            
-            // Set ownership
-            fragment.Yft = yft;
-            if (fragment.Drawable != null)
-            {
-                fragment.Drawable.Owner = yft;
-            }
-            if (fragment.DrawableCloth != null)
-            {
-                fragment.DrawableCloth.Owner = yft;
-            }
-            
-            if (verbose)
-            {
-                Console.WriteLine("Successfully loaded Fragment from memory dump.");
-                if (fragment.Drawable != null)
-                {
-                    Console.WriteLine($"Has Drawable: Yes");
-                }
-                if (fragment.DrawableCloth != null)
-                {
-                    Console.WriteLine($"Has DrawableCloth: Yes");
-                }
-                if (fragment.PhysicsLODGroup != null)
-                {
-                    Console.WriteLine($"Has Physics: Yes");
-                }
-            }
-            
-            // Save as compressed YFT
-            var compressedData = yft.Save();
-            
-            if (compressedData == null || compressedData.Length == 0)
-            {
-                throw new Exception("Failed to save YFT - data is empty");
-            }
-            
-            // Write output
-            var outputDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-            
-            File.WriteAllBytes(outputPath, compressedData);
-            
-            if (verbose)
-            {
-                Console.WriteLine($"Compressed YFT written to: {outputPath}");
-                Console.WriteLine($"File size: {compressedData.Length:N0} bytes");
-            }
-        }
-
-        /// <summary>
-        /// Simple fallback compression when pointer conversion fails
-        /// </summary>
-        private void SimpleFallbackCompression(byte[] memoryDump, string outputPath, bool useGen9)
+        private void ConvertToCompressedYft(byte[] memoryDump, string outputPath, bool useGen9)
         {
             try
             {
-                Console.WriteLine("Using optimized compression approach...");
+                if (verbose)
+                {
+                    Console.WriteLine($"Converting to {(useGen9 ? "Gen9" : "Gen8")} compressed YFT format...");
+                }
+
+                // Load the YFT from memory dump
+                var yft = LoadUncompressedYft(memoryDump, useGen9);
                 
-                // The memory dump is already in the correct format
-                // We just need to compress it with proper flags
+                if (yft?.Fragment == null)
+                {
+                    throw new Exception("Failed to load Fragment from memory dump");
+                }
                 
-                // All data goes to system memory, no graphics data
-                uint systemSize = (uint)memoryDump.Length;
-                uint graphicsSize = 0;
+                if (verbose)
+                {
+                    Console.WriteLine("Successfully loaded YFT from memory dump.");
+                    Console.WriteLine($"Has Drawable: {yft.Fragment.Drawable != null}");
+                    Console.WriteLine($"Has Physics: {yft.Fragment.PhysicsLODGroup != null}");
+                    if (yft.Fragment.BoundingSphereRadius > 0)
+                    {
+                        Console.WriteLine($"Bounding sphere: Center=({yft.Fragment.BoundingSphereCenter.X:F6}, {yft.Fragment.BoundingSphereCenter.Y:F6}, {yft.Fragment.BoundingSphereCenter.Z:F6}), Radius={yft.Fragment.BoundingSphereRadius:F6}");
+                    }
+                }
                 
-                // Get proper page flags  
-                var version = useGen9 ? 171u : 162u;
-                var systemFlags = new RpfResourcePageFlags(RpfResourceFileEntry.GetFlagsFromSize((int)systemSize, version));
-                var graphicsFlags = new RpfResourcePageFlags(0); // No graphics data
+                // Save the YFT file - this will handle all the compression and header creation
+                RpfManager.IsGen9 = useGen9;
+                var compressedData = yft.Save();
                 
-                // Compress the data
-                var compressedData = ResourceBuilder.Compress(memoryDump);
+                if (compressedData == null || compressedData.Length == 0)
+                {
+                    throw new Exception("Failed to save YFT - data is empty");
+                }
                 
-                // Create final data with RSC7 header
-                var data = new byte[16 + compressedData.Length];
-                BitConverter.GetBytes(0x37435352).CopyTo(data, 0); // 'RSC7'
-                BitConverter.GetBytes(version).CopyTo(data, 4); // Version based on generation
-                BitConverter.GetBytes(systemFlags.Value).CopyTo(data, 8);
-                BitConverter.GetBytes(graphicsFlags.Value).CopyTo(data, 12);
-                Buffer.BlockCopy(compressedData, 0, data, 16, compressedData.Length);
+                // Write output
+                var outputDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
                 
-                File.WriteAllBytes(outputPath, data);
+                File.WriteAllBytes(outputPath, compressedData);
                 
-                Console.WriteLine($"Compression complete. Output: {data.Length:N0} bytes");
-                Console.WriteLine($"System memory: {systemSize:N0} bytes");
-                Console.WriteLine($"Compressed size: {compressedData.Length:N0} bytes");
+                if (verbose)
+                {
+                    Console.WriteLine($"Compressed YFT written to: {outputPath}");
+                    Console.WriteLine($"File size: {compressedData.Length:N0} bytes");
+                    Console.WriteLine($"Compression ratio: {(compressedData.Length * 100.0 / memoryDump.Length):F1}%");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Compression failed: {ex.Message}");
-                throw;
+                throw new Exception($"Failed to convert to compressed YFT: {ex.Message}", ex);
             }
         }
 
         /// <summary>
-        /// Converts an uncompressed YFT (memory dump) to XML format
+        /// Convert to XML format with better error handling
         /// </summary>
-        /// <param name="inputPath">Path to the input uncompressed YFT file</param>
-        /// <param name="outputPath">Path to the output XML file</param>
-        /// <param name="resourceFolder">Optional folder for extracting resources/textures</param>
-        public void ConvertUncompressedToXml(string inputPath, string outputPath, string resourceFolder = "")
+        private void ConvertToXml(byte[] memoryDump, string outputPath)
         {
-            if (!File.Exists(inputPath))
+            try
             {
-                throw new FileNotFoundException($"Input YFT file not found: {inputPath}");
-            }
+                if (verbose)
+                {
+                    Console.WriteLine("Converting to XML format...");
+                }
 
-            if (verbose)
-            {
-                Console.WriteLine($"Loading uncompressed YFT: {inputPath}");
-            }
+                // Try to load the YFT structure from memory dump
+                var yft = LoadUncompressedYft(memoryDump, false); // Use Gen8 for XML
+                
+                if (yft?.Fragment == null)
+                {
+                    throw new Exception("Failed to load Fragment data from YFT");
+                }
 
-            // Load the uncompressed YFT data
-            var memoryDump = File.ReadAllBytes(inputPath);
-            
-            Console.WriteLine($"File size: {memoryDump.Length:N0} bytes");
-            
-            // Check if it's a memory dump (starts with "FRAG")
-            if (memoryDump.Length < 4 || System.Text.Encoding.ASCII.GetString(memoryDump, 0, 4) != "FRAG")
-            {
-                throw new Exception("Input file is not an uncompressed YFT (doesn't start with FRAG)");
+                // Extract resource folder from output path if needed
+                var resourceFolder = Path.Combine(Path.GetDirectoryName(outputPath), Path.GetFileNameWithoutExtension(outputPath) + "_resources");
+                
+                // Convert to XML
+                string xml = YftXml.GetXml(yft, resourceFolder);
+                
+                if (string.IsNullOrEmpty(xml))
+                {
+                    throw new Exception("Failed to generate XML from YFT");
+                }
+                
+                // Write XML output
+                var outputDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+                
+                File.WriteAllText(outputPath, xml, Encoding.UTF8);
+                
+                if (verbose)
+                {
+                    Console.WriteLine($"XML written to: {outputPath}");
+                    Console.WriteLine($"XML size: {new FileInfo(outputPath).Length:N0} bytes");
+                    if (Directory.Exists(resourceFolder) && Directory.GetFiles(resourceFolder).Length > 0)
+                    {
+                        Console.WriteLine($"Resources extracted to: {resourceFolder}");
+                    }
+                }
             }
-            
-            if (verbose)
+            catch (Exception ex)
             {
-                Console.WriteLine("Detected uncompressed YFT memory dump.");
-                Console.WriteLine("Loading YFT structure...");
+                throw new Exception($"Failed to convert to XML: {ex.Message}", ex);
             }
-            
+        }
+
+        /// <summary>
+        /// Load uncompressed YFT from memory dump with robust error handling
+        /// </summary>
+        private YftFile LoadUncompressedYft(byte[] memoryDump, bool useGen9)
+        {
             YftFile yft = null;
             
             try
             {
-                // Try to load using native YFT handling (no need to specify gen8/gen9 for XML)
-                yft = LoadUncompressedYftForXml(memoryDump);
+                // Create a proper resource entry with appropriate flags
+                var systemSize = memoryDump.Length;
+                // var graphicsSize = 0; // Currently unused
+                var version = useGen9 ? 171u : 162u;
+                var systemFlags = RpfResourceFileEntry.GetFlagsFromSize((int)systemSize, version);
+                var graphicsFlags = 0u; // No graphics data
+                
+                var resentry = new RpfResourceFileEntry();
+                resentry.SystemFlags = new RpfResourcePageFlags(systemFlags);
+                resentry.GraphicsFlags = new RpfResourcePageFlags(graphicsFlags);
+                
+                // Try multiple approaches to load the YFT
+                try
+                {
+                    // Approach 1: Direct load using YftFile
+                    yft = new YftFile();
+                    yft.Load(memoryDump, resentry);
+                    
+                    if (yft.Fragment != null)
+                    {
+                        if (verbose)
+                        {
+                            Console.WriteLine("Successfully loaded YFT using direct load method.");
+                        }
+                        return yft;
+                    }
+                }
+                catch (Exception ex1)
+                {
+                    if (verbose)
+                    {
+                        Console.WriteLine($"Direct load attempt failed: {ex1.Message}");
+                        
+                        // Check for common issues
+                        if (ex1.Message.IndexOf("DeflateStream", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            ex1.InnerException is InvalidDataException)
+                        {
+                            Console.WriteLine("  Note: This appears to be a decompression error. The data might already be decompressed.");
+                        }
+                    }
+                }
+                
+                // Approach 2: Try using ResourceDataReader directly
+                try
+                {
+                    var reader = new ResourceDataReader(resentry, memoryDump, Endianess.LittleEndian);
+                    reader.Position = 0x50000000; // Set to system memory base
+                    
+                    var fragment = reader.ReadBlock<FragType>();
+                    if (fragment != null)
+                    {
+                        yft = new YftFile();
+                        yft.Fragment = fragment;
+                        fragment.Yft = yft;
+                        
+                        if (fragment.Drawable != null)
+                        {
+                            fragment.Drawable.Owner = yft;
+                        }
+                        if (fragment.DrawableCloth != null)
+                        {
+                            fragment.DrawableCloth.Owner = yft;
+                        }
+                        
+                        return yft;
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    if (verbose)
+                    {
+                        Console.WriteLine($"ResourceDataReader approach failed: {ex2.Message}");
+                    }
+                }
+                
+                // If all approaches fail
+                throw new Exception("Unable to load YFT data from memory dump using any available method");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to load YFT: {ex.Message}");
-                if (verbose)
+                // Check if it's a DeflateStream error
+                if (ex.InnerException is InvalidDataException || 
+                    ex.Message.IndexOf("invalid data", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    ex.Message.IndexOf("corrupt", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    throw new Exception("The YFT file appears to be corrupted or contains invalid compressed data. " +
+                                      "This often happens when the file structure is damaged or incompletely extracted.", ex);
                 }
                 throw;
             }
-            
-            if (yft?.Fragment == null)
-            {
-                throw new Exception("Failed to load Fragment data from YFT");
-            }
-            
-            if (verbose)
-            {
-                Console.WriteLine("Successfully loaded YFT structure.");
-                Console.WriteLine("Converting to XML...");
-            }
-            
-            // Convert to XML
-            string xml = YftXml.GetXml(yft, resourceFolder);
-            
-            if (string.IsNullOrEmpty(xml))
-            {
-                throw new Exception("Failed to generate XML from YFT");
-            }
-            
-            // Write XML output
-            var outputDir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
-            {
-                Directory.CreateDirectory(outputDir);
-            }
-            
-            File.WriteAllText(outputPath, xml, Encoding.UTF8);
-            
-            if (verbose)
-            {
-                Console.WriteLine($"XML written to: {outputPath}");
-                Console.WriteLine($"XML size: {new FileInfo(outputPath).Length:N0} bytes");
-                
-                if (!string.IsNullOrEmpty(resourceFolder))
-                {
-                    Console.WriteLine($"Resource folder: {resourceFolder}");
-                }
-            }
         }
 
-        /// <summary>
-        /// Load uncompressed YFT specifically for XML conversion
-        /// </summary>
-        private YftFile LoadUncompressedYftForXml(byte[] memoryDump)
-        {
-            // Create a proper resource entry with appropriate flags
-            var systemSize = memoryDump.Length;
-            var graphicsSize = 0;
-            // Use Gen8 by default for XML conversion (version doesn't matter for XML output)
-            var systemFlags = RpfResourceFileEntry.GetFlagsFromSize(systemSize, 162u);
-            var graphicsFlags = 0u; // No graphics data
-            
-            var resentry = new RpfResourceFileEntry();
-            resentry.SystemFlags = new RpfResourcePageFlags(systemFlags);
-            resentry.GraphicsFlags = new RpfResourcePageFlags(graphicsFlags);
-            
-            // Create YftFile and load it
-            var yft = new YftFile();
-            
-            // Load using the memory dump data
-            yft.Load(memoryDump, resentry);
-            
-            return yft;
-        }
+    }
+
+    public enum OutputFormat
+    {
+        Gen8YFT,
+        Gen9YFT,
+        XML
     }
 }
