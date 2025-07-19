@@ -1,17 +1,74 @@
 # CodeWalker DLC Merger
 
-A command-line tool for merging multiple GTA V DLC RPF files into a single organized directory structure.
+A sophisticated command-line tool for merging multiple GTA V DLC RPF files into a single organized directory structure with intelligent XML processing and dependency management.
 
 ## Features
 
 - **Merge multiple DLC RPF files** into one organized directory structure
 - **Recursive directory scanning** - automatically finds all RPF files in subdirectories
 - **Intelligent selective merging** - focuses on vehicle-related content by default
-- **Smart XML/meta file merging** - combines metadata from multiple DLCs
+- **Smart XML/meta file merging** - combines metadata from multiple DLCs using template-based validation
+- **Cross-reference validation** - ensures consistency between interconnected XML files
 - **Flexible input methods** - individual files or entire directories
 - **Dry-run mode** - preview merge results without creating files
 - **Comprehensive logging** - verbose output with progress tracking
 - **Vehicle-focused filtering** - automatically excludes non-vehicle files
+- **Error recovery** - handles corrupted or invalid files gracefully
+
+## Why XML Processing is Complex in GTA V
+
+GTA V uses a complex system of interconnected XML files where vehicles, modifications, and game properties reference each other across multiple files. This creates significant challenges when merging DLC packages:
+
+### The XML Reference Web
+
+```mermaid
+graph LR
+    vehicles.meta -->|references| handling.meta
+    vehicles.meta -->|references| vehiclelayouts.meta
+    carvariations.meta -->|references kits| carcols.meta
+    vehicles.meta -->|may reference| weaponarchetypes.meta
+    vehicles.meta -->|may reference| explosion.meta
+    
+    style vehicles.meta fill:#f9f,stroke:#333,stroke-width:2px
+    style carcols.meta fill:#9ff,stroke:#333,stroke-width:2px
+```
+
+### Key Challenges
+
+1. **Multiple DLCs with Same Vehicles**: Different DLCs may contain the same vehicle with different properties - the merger must intelligently combine these
+2. **Cross-File References**: A kit defined in `carcols.meta` must exist for references in `carvariations.meta` to work
+3. **Invalid References Crash the Game**: Missing or broken references can cause GTA V to crash on load
+4. **Different Container Structures**: Each XML file type has its own unique structure that must be preserved
+5. **Load Order Dependencies**: Files must be loaded in the correct order (e.g., `handling.meta` before `vehicles.meta`)
+
+### How DLCMerger Solves This
+
+The tool uses several advanced techniques to handle XML complexity:
+
+1. **Template-Based Merging**: Each file type has a validated template structure ensuring game compatibility
+2. **Container Discovery**: Automatically identifies where items should be placed in the merged XML
+3. **Cross-Reference Validation**: Validates all references between files and fixes invalid ones
+4. **Intelligent Deduplication**: When the same item exists in multiple DLCs, uses smart logic to choose the right one
+5. **Automatic Cleanup**: Removes empty or invalid entries that could cause issues
+
+### Example: Kit Reference Validation
+
+When merging `carcols.meta` and `carvariations.meta`:
+
+```xml
+<!-- carvariations.meta references a kit -->
+<Item>
+    <modelName>adder</modelName>
+    <kits>
+        <Item>adder_modkit</Item>  <!-- This kit MUST exist in carcols.meta -->
+    </kits>
+</Item>
+
+<!-- If the kit doesn't exist in carcols.meta, DLCMerger will: -->
+<!-- 1. Detect the invalid reference -->
+<!-- 2. Replace it with "0_default_modkit" -->
+<!-- 3. Log a warning about the fix -->
+```
 
 ## Usage
 
@@ -229,9 +286,29 @@ This visualization helps identify:
 
 The tool is part of the CodeWalker solution. To build:
 
+1. Ensure .NET 8.0 SDK or later is installed
+2. Clone the CodeWalker repository
+3. Build using one of these methods:
+
+**Using Visual Studio:**
+```
 1. Open CodeWalker.sln in Visual Studio
 2. Build the CodeWalker.DLCMerger project
 3. The executable will be in `bin/Debug/net8.0/DLCMerger.exe`
+```
+
+**Using Command Line:**
+```bash
+cd CodeWalker.DLCMerger
+dotnet build
+# Output: bin/Debug/net8.0/DLCMerger.exe
+```
+
+**For Release Build:**
+```bash
+dotnet build -c Release
+# Output: bin/Release/net8.0/DLCMerger.exe
+```
 
 ## Output and Logging
 
@@ -280,6 +357,8 @@ The tool provides comprehensive logging with multiple verbosity levels:
 2. **"Output file already exists"**: Use `-f` flag to force overwrite
 3. **Large merge takes too long**: Use `-d` flag for dry run testing first
 4. **Conflicts not expected**: Use `-s` flag to visualize structure differences
+5. **"Invalid kit reference"**: Kit referenced in carvariations but not defined in carcols - automatically fixed
+6. **"No template for X.meta"**: Unknown XML file type - will be copied as-is without merging
 
 ### Performance Tips:
 
@@ -287,3 +366,94 @@ The tool provides comprehensive logging with multiple verbosity levels:
 - Enable verbose mode (`-v`) only when debugging
 - Structure visualization (`-s`) adds processing time for large RPFs
 - Consider merging in smaller batches for very large collections
+
+## Architecture Overview
+
+### Processing Pipeline
+
+```mermaid
+graph TD
+    Start[Input DLC RPFs] --> Extract[Extract Models]
+    Extract --> Analyze[Analyze Dependencies]
+    Analyze --> Merge[Merge XML Files]
+    Merge --> Validate[Validate References]
+    Validate --> Generate[Generate Manifests]
+    Generate --> Output[Output Structure]
+    
+    Extract -.->|Models| Models[vehicles.rpf/<br/>weapons.rpf/]
+    Merge -.->|XML Files| XMLFiles[data/*.meta]
+    Generate -.->|Manifests| Manifests[content.xml<br/>setup2.xml]
+    
+    style Merge fill:#ff9,stroke:#333,stroke-width:2px
+    style Validate fill:#9ff,stroke:#333,stroke-width:2px
+```
+
+### Core Components
+
+1. **SimplifiedRpfMerger**: Main orchestrator that coordinates the merging process
+2. **ModelExtractor**: Extracts and categorizes model files (.yft, .ytd, .ycd, .ydr)
+3. **SelectiveMerger**: Analyzes dependencies to include only required content
+4. **XmlMerger**: Handles complex XML merging with template validation
+
+### XML Merging Process
+
+The XML merger uses a sophisticated template-based approach:
+
+1. **Template Matching**: Each XML file type has a pre-validated template structure
+2. **Container Discovery**: Identifies all containers that can hold items
+3. **Item Collection**: Gathers items from all source DLCs
+4. **Intelligent Merging**: Combines items while handling duplicates
+5. **Cross-Reference Validation**: Ensures all references between files are valid
+6. **Cleanup**: Removes invalid or empty entries
+
+### Supported XML File Types
+
+| File Type | Container Structure | Validation |
+|-----------|-------------------|------------|
+| vehicles.meta | InitDatas, txdRelationships | Model references |
+| handling.meta | HandlingData | Vehicle IDs |
+| carcols.meta | Kits | Kit definitions |
+| carvariations.meta | variationData | Kit references |
+| vehiclelayouts.meta | Multiple containers | Layout IDs |
+| weaponarchetypes.meta | weaponArchetypes | Weapon references |
+
+## Technical Details
+
+### Model File Handling
+
+- **Resource Headers**: Preserved for game compatibility
+- **Classification**: Automatic categorization of vehicle vs weapon models
+- **Compression**: Maintains proper compression for resource files
+- **Nested RPFs**: Handles RPF files within RPF files recursively
+
+### Selective Merging Logic
+
+When not using `--merge-all`, the tool:
+1. Analyzes vehicles.meta to identify vehicle models
+2. Builds a dependency graph of required files
+3. Includes only vehicle-related content
+4. Adds weapon files only for weaponized vehicles
+5. Excludes ped, scenario, and other non-vehicle content
+
+### Output Structure
+
+```
+output_directory/
+└── dlc.rpf/
+    ├── content.xml              # Generated manifest
+    ├── setup2.xml              # Generated setup
+    ├── data/                   # Merged XML files
+    │   ├── vehicles.meta
+    │   ├── handling.meta
+    │   ├── carcols.meta
+    │   ├── carvariations.meta
+    │   ├── vehiclelayouts.meta
+    │   └── [other meta files]
+    ├── vehicles.rpf/           # Vehicle models
+    │   ├── vehicle_name.yft
+    │   ├── vehicle_name.ytd
+    │   └── [other vehicle files]
+    └── weapons.rpf/            # Weapon models
+        ├── w_weapon_name.ydr
+        └── [other weapon files]
+```
