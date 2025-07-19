@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationIcon>CW.ico</ApplicationIcon>
+    <ApplicationIcon>bilibili_logo_icon.ico</ApplicationIcon>
     <Copyright>dexyfex</Copyright>
     <Company>dexyfex software</Company>
     <Authors>dexyfex</Authors>

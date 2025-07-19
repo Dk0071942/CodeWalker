@@ -28,7 +28,7 @@ namespace CodeWalker.YftConverter
         {
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Select the input folder containing YFT files";
+                fbd.Description = "选择包含YFT文件的输入文件夹";
                 if (!string.IsNullOrEmpty(InputFolderTextBox.Text) && Directory.Exists(InputFolderTextBox.Text))
                 {
                     fbd.SelectedPath = InputFolderTextBox.Text;
@@ -45,7 +45,7 @@ namespace CodeWalker.YftConverter
         {
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Select the output folder for converted files";
+                fbd.Description = "选择转换文件的输出文件夹";
                 if (!string.IsNullOrEmpty(OutputFolderTextBox.Text) && Directory.Exists(OutputFolderTextBox.Text))
                 {
                     fbd.SelectedPath = OutputFolderTextBox.Text;
@@ -68,13 +68,13 @@ namespace CodeWalker.YftConverter
 
             if (string.IsNullOrEmpty(InputFolderTextBox.Text) || !Directory.Exists(InputFolderTextBox.Text))
             {
-                MessageBox.Show("Please select a valid input folder.", "Invalid Input", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("请选择有效的输入文件夹。", "无效输入", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (string.IsNullOrEmpty(OutputFolderTextBox.Text))
             {
-                MessageBox.Show("Please select an output folder.", "Invalid Output", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("请选择输出文件夹。", "无效输出", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -86,7 +86,7 @@ namespace CodeWalker.YftConverter
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to create output directory: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"创建输出目录失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
             }
@@ -116,25 +116,25 @@ namespace CodeWalker.YftConverter
 
                 var files = Directory.GetFiles(inputPath, "*.yft", searchOption);
                 
-                UpdateLog($"Found {files.Length} YFT files to process.");
+                UpdateLog($"找到 {files.Length} 个YFT文件需要处理。");
                 string formatDescription;
                 switch (outputFormat)
                 {
                     case OutputFormat.Gen8Yft:
-                        formatDescription = "Gen8 YFT (Compressed)";
+                        formatDescription = "Gen8 YFT (压缩)";
                         break;
                     case OutputFormat.Gen9Yft:
-                        formatDescription = "Gen9 YFT (Compressed)";
+                        formatDescription = "Gen9 YFT (压缩)";
                         break;
                     case OutputFormat.Gen8Xml:
                         formatDescription = "XML";
                         break;
                     default:
-                        formatDescription = "Unknown";
+                        formatDescription = "未知";
                         break;
                 }
-                UpdateLog($"Output format: {formatDescription}");
-                UpdateLog("Starting conversion...\n");
+                UpdateLog($"输出格式: {formatDescription}");
+                UpdateLog("开始转换...\n");
 
                 UpdateProgress(0, files.Length);
 
@@ -158,29 +158,29 @@ namespace CodeWalker.YftConverter
 
                     if (File.Exists(outputFilePath) && !overwrite)
                     {
-                        UpdateLog($"Skipping: {relativePath} (already exists)");
+                        UpdateLog($"跳过: {relativePath} (已存在)");
                     }
                     else
                     {
                         try
                         {
                             ConvertYftFile(file, outputFilePath, outputFormat);
-                            UpdateLog($"Converted: {relativePath}");
+                            UpdateLog($"已转换: {relativePath}");
                         }
                         catch (Exception ex)
                         {
-                            UpdateLog($"ERROR: Failed to convert {relativePath}: {ex.Message}");
+                            UpdateLog($"错误: 转换失败 {relativePath}: {ex.Message}");
                         }
                     }
 
                     UpdateProgress(i + 1, files.Length);
                 }
 
-                UpdateLog("\nConversion complete!");
+                UpdateLog("\n转换完成！");
             }
             catch (Exception ex)
             {
-                UpdateLog($"\nERROR: {ex.Message}");
+                UpdateLog($"\n错误: {ex.Message}");
             }
             finally
             {
