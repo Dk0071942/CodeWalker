@@ -34,7 +34,7 @@ flowchart TD
     Success -->|Yes| WriteCompressed[Write Compressed<br/>YFT File]
     Success -->|No| NextMethod[Try Next Method]
     
-    LoadForXML --> GenerateXML[Generate XML<br/>with YftXml.GetXml()]
+    LoadForXML --> GenerateXML[Generate XML<br/>with YftXml.GetXml]
     GenerateXML --> WriteXML[Write XML File]
     
     WriteCompressed --> End
