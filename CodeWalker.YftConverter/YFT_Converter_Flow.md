@@ -3,6 +3,8 @@
 ## Overview
 This document contains Mermaid diagrams that visualize the YFT converter's operation, making it easier to understand the conversion process, memory layout, and validation logic.
 
+> **Note**: These diagrams are compatible with standard Mermaid renderers (GitHub, GitLab, VS Code Mermaid extension, etc.)
+
 ## 1. High-Level Conversion Flow
 
 ```mermaid
@@ -81,20 +83,20 @@ flowchart TD
 ## 3. Memory Layout and Pointer System
 
 ```mermaid
-graph TD
-    subgraph "Memory Regions"
+flowchart TD
+    subgraph MemoryRegions["Memory Regions"]
         SysMem[System Memory<br/>0x50000000 - 0x5FFFFFFF]
         GfxMem[Graphics Memory<br/>0x60000000 - 0x6FFFFFFF]
     end
     
-    subgraph "Memory Dump Structure"
+    subgraph MemoryDumpStructure["Memory Dump Structure"]
         Header[FRAG Header<br/>4 bytes: 0x47415246]
         FragType[FragType Structure<br/>~304 bytes]
         SysData[System Data<br/>Variable size]
         GfxData[Graphics Data<br/>Variable size]
     end
     
-    subgraph "Pointer Detection"
+    subgraph PointerDetection["Pointer Detection"]
         Scan[Scan 64-bit values]
         Check{In valid range?}
         SysPtr[System Pointer<br/>0x50xxxxxx]
@@ -204,19 +206,15 @@ flowchart TD
     
     Compress --> CreateHeader[Create RSC7 Header<br/>16 bytes]
     
-    subgraph "RSC7 Header Structure"
-        Magic[Bytes 0-3: 'RSC7'<br/>0x37435352]
-        Version[Bytes 4-7: Version<br/>162 or 171]
-        SysFlags[Bytes 8-11: System Flags]
-        GfxFlags[Bytes 12-15: Graphics Flags]
-    end
+    CreateHeader --> HeaderDetails[RSC7 Header:<br/>0-3: 'RSC7' 0x37435352<br/>4-7: Version 162 or 171<br/>8-11: System Flags<br/>12-15: Graphics Flags]
     
-    CreateHeader --> Combine[Combine Header +<br/>Compressed Data]
+    HeaderDetails --> Combine[Combine Header +<br/>Compressed Data]
     
     Combine --> Output([Output Compressed YFT])
     
     style Ver162 fill:#e1e1ff
     style Ver171 fill:#ffe1e1
+    style HeaderDetails fill:#f0f0f0
 ```
 
 ## 7. Region Size Estimation Algorithm
